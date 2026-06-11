@@ -1,0 +1,6 @@
+# runtime (tkinter ships with Python on Windows)
+numpy
+pillow
+
+# to build the .exe (release build only):
+#   python -m pip install pyinstaller

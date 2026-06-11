@@ -1,0 +1,9 @@
+{
+  "cx": 565.2,
+  "cy": 339.5,
+  "fx": -870.7,
+  "fy": 842.9,
+  "h": 20.0,
+  "rot_addr": 7528600,
+  "note": "camera-to-world matrix at 0x0072E090; view=R@(P+(0,h,0)-cam); calibrated multi-view"
+}

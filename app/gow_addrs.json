@@ -1,0 +1,30 @@
+{
+  "game_id": "SCES-53133",
+  "kratos_health": null,
+  "kratos_health_max": null,
+  "kratos_pos": null,
+  "actor_stride": null,
+  "actor_table": null,
+  "actor_off_health": 376,
+  "actor_off_pos": 272,
+  "camera_matrix": 7528592,
+  "camera_convention": "camera-to-world at 0x0072E090: R=rows0-2, cam=row3; view=R@(P+(0,h,0)-cam); see camcalib.json",
+  "notes": {
+    "enum": "signature scan: pos vec4 (w=1) at +0x110, health pair at +0x178/+0x17C",
+    "camera": "LIVE camera-to-world matrix at 0x0072E090 (rotation rows 0-2, camera world pos in row 3). Intrinsics + projection in camcalib.json / liveproj.py.",
+    "vp_DEPRECATED": "the old vp_matrix at 0x011325E0 is BOGUS (w-row=[0,0,1,-8], pure world-z; coincidental Kratos fit). Do not use; replaced by the 0x0072E090 camera."
+  },
+  "actor_off_healthmax": 380,
+  "actor_off_matrix": 80,
+  "vp_matrix": 18032096,
+  "vp_layout": "row",
+  "vp_yflip": true,
+  "vp_viewport": [
+    1124,
+    676
+  ],
+  "enemy_max_lo": 10,
+  "enemy_max_hi": 300,
+  "player_max_min": 80,
+  "vp_torso": 14
+}

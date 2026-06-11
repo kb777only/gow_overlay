@@ -1,0 +1,17 @@
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+
+# build artifacts (the release .exe is published as a GitHub Release asset)
+build/
+dist/
+release/
+*.spec
+
+# user-generated config
+app/settings.json
+
+# third-party tools (not part of this repo)
+Cheat Engine/
+cheat_table_UPC/
