@@ -79,7 +79,7 @@ Current Linux support implementation progress: {ProgTrk.GetProg()}
 
 
 {bcolors.OKBLUE}If you are on Windows{bcolors.ENDC}, please report the issue at
-{ltools.bcolors.HEADER}{ltools.Info.lnk}{ltools.bcolors.ENDC} specifying app version {ltools.bcolors.OKCYAN}{ltools.Info.ver}
+{ltools.bcolors.HEADER}{ltools.Info.lnk}/issues/new{ltools.bcolors.ENDC} specifying app version {ltools.bcolors.OKCYAN}{ltools.Info.ver}
 {ltools.bcolors.OKBLUE}and run the program again using the '--force' argument.{bcolors.ENDC}
 
 
