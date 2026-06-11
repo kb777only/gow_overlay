@@ -31,13 +31,12 @@ import random
 import threading
 
 # ---------------------------------- WIP ----------------------------------
-if "posix" in os.name:
-    import _linux_support_wip_tools as ltools
+import _linux_support_wip_tools as ltools
+if "posix" in os.name and ltools.Info.l_rdy == False:
     if "--force" in sys.argv:
         print(ltools.FORCE_WARNING_MESSAGE)
     else:
         ltools.ProgTrk.LinuxDevProgError()
-
 else:
     import pine
     import memscan

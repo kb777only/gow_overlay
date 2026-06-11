@@ -1,5 +1,7 @@
 {
     "author": "kb777",
-    "version": "0.3",
-    "github_link": "https://www.github.com/kb777/ps2gow_dmg_overlay" 
+    "version": 0.3,
+    "github_link": "https://www.github.com/kb777/ps2gow_dmg_overlay",
+    "linux_ready": false,
+    "linux_dev_progress": 5
 }

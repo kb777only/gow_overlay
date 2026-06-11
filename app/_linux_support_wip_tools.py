@@ -34,10 +34,12 @@ class Info:
         aij = json.load(open(_PATH))
     lnk = aij["github_link"]
     ver = aij["version"]
+    l_rdy = aij["linux_ready"]
+    l_prog = aij["linux_dev_progress"]
 
 
 class ProgTrk:
-    prog = 25        # percentage based current implementation progress
+    prog = Info.l_prog        # percentage based current implementation progress
     color = bcolors.ENDC
     if (prog < 33):
         color = bcolors.OKBLUE
