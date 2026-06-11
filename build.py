@@ -18,7 +18,7 @@ NAME = "GoW-Damage-Overlay"
 SEP = os.pathsep   # ';' on Windows
 
 MODULES = ["gow_overlay", "overlay", "liveproj", "enemy", "memscan", "pine",
-           "winutil", "winshot", "emu", "config", "settings", "setup_gui"]
+           "winutil", "winshot", "emu", "config", "settings", "setup_gui", "_linux_support_wip_tools"]
 
 args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
         "--onefile", "--console", "--name", NAME,
@@ -39,11 +39,12 @@ with open(readme, "w", encoding="utf-8") as f:
     f.write(
         "God of War (PCSX2) - live damage-number overlay\n"
         "================================================\n\n"
-        "1. Launch PCSX2 with PINE enabled (Settings > Advanced > Enable PINE) and\n"
+        "1. Launch PCSX2 with PINE enabled (PCSX2 Settings > Advanced > Enable PINE) and\n"
         "   start God of War (SCES-53133, PAL).\n"
         "2. Double-click GoW-Damage-Overlay.exe and pick how to run it.\n"
         "   You can start it before the game - it waits.\n\n"
         "Damage numbers pop over enemies as you hit them. Use 'Settings' to tweak\n"
         "colours, size, screenshake, etc. Your tweaks are saved in settings.json\n"
         "next to this exe.\n")
-print("\nDone -> release/%s.exe" % NAME)
+ext = ".exe" if sys.platform == "win32" else ""
+print("\nDone -> release/%s%s" % (NAME, ext))
