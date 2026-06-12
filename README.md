@@ -9,6 +9,7 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 
 ### Demo with lowered EpicFX thresholds for demonstration:
   (configurable by clicking Setup in the Launcher)
+  
 ![Demo](assets/demo.gif)
 
 
