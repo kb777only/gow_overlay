@@ -42,7 +42,7 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 Damage numbers will now appear over enemies whenever you hurt them.  
 To adjust colours, size, or effect strength, click **Settings** in the launcher while the overlay is running – changes apply instantly.
 
-> 💡 The overlay waits for the game to launch. You can start it before PCSX2 – it will automatically connect once the game is running, or automatically detect it if the game is already running (Can be started/stopped freely during active gameplay).
+> 💡 The overlay waits for the game to launch. You can start it before PCSX2 – it will automatically connect once the game is running, or automatically detect it if the game is already running (can be started/stopped freely during active gameplay).
 
 ## 🔧 Running from Source (Python)
 
