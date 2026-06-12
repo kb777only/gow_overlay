@@ -1,7 +1,7 @@
 {
     "author": "kb777",
-    "version": 0.3,
+    "version": 0.4,
     "github_link": "https://github.com/kb777only/gow_overlay/",
-    "linux_ready": false,
-    "linux_dev_progress": 5
+    "linux_ready": true,
+    "linux_dev_progress": 100
 }

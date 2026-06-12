@@ -1,70 +1,108 @@
-"""winshot.py - capture a client-area region of a window into raw BGRA via GDI
-(works with hardware-accelerated content by blitting from the screen DC), plus
-a helper to measure the God of War HUD health (green) bar fill."""
+"""winshot.py - capture a screen region into raw BGRA (GDI screen-DC blit on
+Windows, XGetImage on Linux/X11), plus a helper to measure the God of War HUD
+health (green) bar fill.
+
+Note: on Wayland the X11 path can only see XWayland content via the virtual
+root, so captures may be black there - this module is a diagnostic aid, the
+overlay itself does not depend on it."""
 import ctypes
-from ctypes import wintypes
+import sys
+
 import winutil
 
-user32 = ctypes.WinDLL("user32", use_last_error=True)
-gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+if sys.platform == "win32":
+    from ctypes import wintypes
 
-SRCCOPY = 0x00CC0020
-DIB_RGB_COLORS = 0
-BI_RGB = 0
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
 
-user32.GetDC.restype = wintypes.HDC
-user32.GetDC.argtypes = [wintypes.HWND]
-user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
-gdi32.CreateCompatibleDC.restype = wintypes.HDC
-gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
-gdi32.CreateCompatibleBitmap.restype = wintypes.HBITMAP
-gdi32.CreateCompatibleBitmap.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
-gdi32.SelectObject.restype = wintypes.HGDIOBJ
-gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
-gdi32.BitBlt.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
-                         wintypes.HDC, ctypes.c_int, ctypes.c_int, wintypes.DWORD]
-gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
-gdi32.DeleteDC.argtypes = [wintypes.HDC]
+    SRCCOPY = 0x00CC0020
+    DIB_RGB_COLORS = 0
+    BI_RGB = 0
 
+    user32.GetDC.restype = wintypes.HDC
+    user32.GetDC.argtypes = [wintypes.HWND]
+    user32.ReleaseDC.argtypes = [wintypes.HWND, wintypes.HDC]
+    gdi32.CreateCompatibleDC.restype = wintypes.HDC
+    gdi32.CreateCompatibleDC.argtypes = [wintypes.HDC]
+    gdi32.CreateCompatibleBitmap.restype = wintypes.HBITMAP
+    gdi32.CreateCompatibleBitmap.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int]
+    gdi32.SelectObject.restype = wintypes.HGDIOBJ
+    gdi32.SelectObject.argtypes = [wintypes.HDC, wintypes.HGDIOBJ]
+    gdi32.BitBlt.argtypes = [wintypes.HDC, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+                             wintypes.HDC, ctypes.c_int, ctypes.c_int, wintypes.DWORD]
+    gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+    gdi32.DeleteDC.argtypes = [wintypes.HDC]
 
-class BITMAPINFOHEADER(ctypes.Structure):
-    _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG),
-                ("biHeight", wintypes.LONG), ("biPlanes", wintypes.WORD),
-                ("biBitCount", wintypes.WORD), ("biCompression", wintypes.DWORD),
-                ("biSizeImage", wintypes.DWORD), ("biXPelsPerMeter", wintypes.LONG),
-                ("biYPelsPerMeter", wintypes.LONG), ("biClrUsed", wintypes.DWORD),
-                ("biClrImportant", wintypes.DWORD)]
+    class BITMAPINFOHEADER(ctypes.Structure):
+        _fields_ = [("biSize", wintypes.DWORD), ("biWidth", wintypes.LONG),
+                    ("biHeight", wintypes.LONG), ("biPlanes", wintypes.WORD),
+                    ("biBitCount", wintypes.WORD), ("biCompression", wintypes.DWORD),
+                    ("biSizeImage", wintypes.DWORD), ("biXPelsPerMeter", wintypes.LONG),
+                    ("biYPelsPerMeter", wintypes.LONG), ("biClrUsed", wintypes.DWORD),
+                    ("biClrImportant", wintypes.DWORD)]
 
+    class BITMAPINFO(ctypes.Structure):
+        _fields_ = [("bmiHeader", BITMAPINFOHEADER), ("bmiColors", wintypes.DWORD * 3)]
 
-class BITMAPINFO(ctypes.Structure):
-    _fields_ = [("bmiHeader", BITMAPINFOHEADER), ("bmiColors", wintypes.DWORD * 3)]
+    gdi32.GetDIBits.argtypes = [wintypes.HDC, wintypes.HBITMAP, wintypes.UINT, wintypes.UINT,
+                                ctypes.c_void_p, ctypes.POINTER(BITMAPINFO), wintypes.UINT]
 
+    def capture_region(screen_x, screen_y, w, h):
+        """Return (bytearray BGRA, w, h) of the screen rectangle."""
+        hdc_screen = user32.GetDC(0)
+        hdc_mem = gdi32.CreateCompatibleDC(hdc_screen)
+        hbm = gdi32.CreateCompatibleBitmap(hdc_screen, w, h)
+        old = gdi32.SelectObject(hdc_mem, hbm)
+        gdi32.BitBlt(hdc_mem, 0, 0, w, h, hdc_screen, screen_x, screen_y, SRCCOPY)
+        bmi = BITMAPINFO()
+        bmi.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+        bmi.bmiHeader.biWidth = w
+        bmi.bmiHeader.biHeight = -h        # top-down
+        bmi.bmiHeader.biPlanes = 1
+        bmi.bmiHeader.biBitCount = 32
+        bmi.bmiHeader.biCompression = BI_RGB
+        buf = (ctypes.c_char * (w * h * 4))()
+        gdi32.GetDIBits(hdc_mem, hbm, 0, h, buf, ctypes.byref(bmi), DIB_RGB_COLORS)
+        gdi32.SelectObject(hdc_mem, old)
+        gdi32.DeleteObject(hbm)
+        gdi32.DeleteDC(hdc_mem)
+        user32.ReleaseDC(0, hdc_screen)
+        return bytearray(buf), w, h
 
-gdi32.GetDIBits.argtypes = [wintypes.HDC, wintypes.HBITMAP, wintypes.UINT, wintypes.UINT,
-                            ctypes.c_void_p, ctypes.POINTER(BITMAPINFO), wintypes.UINT]
+else:
+    # reuse winutil_x11's display connection and error handler
+    from winutil_x11 import _display, _x11
+    from overlay_x11 import XImage
 
+    ZPixmap = 2
+    AllPlanes = 0xFFFFFFFFFFFFFFFF
 
-def capture_region(screen_x, screen_y, w, h):
-    """Return (bytearray BGRA, w, h) of the screen rectangle."""
-    hdc_screen = user32.GetDC(0)
-    hdc_mem = gdi32.CreateCompatibleDC(hdc_screen)
-    hbm = gdi32.CreateCompatibleBitmap(hdc_screen, w, h)
-    old = gdi32.SelectObject(hdc_mem, hbm)
-    gdi32.BitBlt(hdc_mem, 0, 0, w, h, hdc_screen, screen_x, screen_y, SRCCOPY)
-    bmi = BITMAPINFO()
-    bmi.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
-    bmi.bmiHeader.biWidth = w
-    bmi.bmiHeader.biHeight = -h        # top-down
-    bmi.bmiHeader.biPlanes = 1
-    bmi.bmiHeader.biBitCount = 32
-    bmi.bmiHeader.biCompression = BI_RGB
-    buf = (ctypes.c_char * (w * h * 4))()
-    gdi32.GetDIBits(hdc_mem, hbm, 0, h, buf, ctypes.byref(bmi), DIB_RGB_COLORS)
-    gdi32.SelectObject(hdc_mem, old)
-    gdi32.DeleteObject(hbm)
-    gdi32.DeleteDC(hdc_mem)
-    user32.ReleaseDC(0, hdc_screen)
-    return bytearray(buf), w, h
+    _x11.XGetImage.restype = ctypes.POINTER(XImage)
+    _x11.XGetImage.argtypes = [ctypes.c_void_p, ctypes.c_ulong, ctypes.c_int, ctypes.c_int,
+                               ctypes.c_uint, ctypes.c_uint, ctypes.c_ulong, ctypes.c_int]
+
+    def capture_region(screen_x, screen_y, w, h):
+        """Return (bytearray BGRA, w, h) of the screen rectangle (root window)."""
+        dpy = _display()
+        root = _x11.XDefaultRootWindow(dpy)
+        img_p = _x11.XGetImage(dpy, root, screen_x, screen_y, w, h, AllPlanes, ZPixmap)
+        out = bytearray(w * h * 4)
+        if not img_p:
+            return out, w, h
+        img = img_p.contents
+        bpl = img.bytes_per_line
+        if bpl == w * 4:
+            out[:] = ctypes.string_at(img.data, w * h * 4)
+        else:
+            for row in range(h):
+                out[row * w * 4:(row + 1) * w * 4] = ctypes.string_at(img.data + row * bpl, w * 4)
+        # equivalent of the XDestroyImage macro (not exported by older libX11):
+        # Xfree the pixel data, then the struct
+        if img.data:
+            _x11.XFree(img.data)
+        _x11.XFree(img_p)
+        return out, w, h
 
 
 def green_pixels(hwnd, box=(150, 55, 230, 80)):

@@ -1,10 +1,12 @@
-"""build.py - package the overlay into a single double-click .exe (release build).
+"""build.py - package the overlay into a single double-click executable.
 
     python build.py
 
-Produces  release/GoW-Damage-Overlay.exe  (one file; bundles Python, numpy, Pillow,
-tkinter and the read-only calibration data). settings.json is created next to the
-exe on first run so players can keep/edit their tweaks.
+Produces  release/GoW-Damage-Overlay.exe  on Windows or  release/GoW-Damage-Overlay
+on Linux (one file; bundles Python, numpy, Pillow, tkinter and the read-only
+calibration data). settings.json is created next to the executable on first run
+so players can keep/edit their tweaks. Build on the OS you are targeting -
+PyInstaller does not cross-compile.
 
 Requires PyInstaller:  python -m pip install pyinstaller
 """
@@ -15,10 +17,14 @@ import sys
 ROOT = os.path.dirname(os.path.abspath(__file__))
 APP = os.path.join(ROOT, "app")
 NAME = "GoW-Damage-Overlay"
-SEP = os.pathsep   # ';' on Windows
+SEP = os.pathsep   # ';' on Windows, ':' elsewhere
 
 MODULES = ["gow_overlay", "overlay", "liveproj", "enemy", "memscan", "pine",
-           "winutil", "winshot", "emu", "config", "settings", "setup_gui", "_linux_support_wip_tools"]
+           "winutil", "winshot", "emu", "config", "settings", "setup_gui"]
+if sys.platform == "win32":
+    MODULES += ["winutil_win32", "overlay_win32"]
+else:
+    MODULES += ["winutil_x11", "overlay_x11"]
 
 args = [sys.executable, "-m", "PyInstaller", "--noconfirm", "--clean",
         "--onefile", "--console", "--name", NAME,
@@ -34,6 +40,7 @@ args.append("launcher.py")
 print(">>", " ".join(args))
 subprocess.run(args, cwd=APP, check=True)
 
+ext = ".exe" if sys.platform == "win32" else ""
 readme = os.path.join(ROOT, "release", "README.txt")
 with open(readme, "w", encoding="utf-8") as f:
     f.write(
@@ -41,10 +48,18 @@ with open(readme, "w", encoding="utf-8") as f:
         "================================================\n\n"
         "1. Launch PCSX2 with PINE enabled (PCSX2 Settings > Advanced > Enable PINE) and\n"
         "   start God of War (SCES-53133, PAL).\n"
-        "2. Double-click GoW-Damage-Overlay.exe and pick how to run it.\n"
+        "2. Run GoW-Damage-Overlay%s and pick how to run it.\n"
         "   You can start it before the game - it waits.\n\n"
         "Damage numbers pop over enemies as you hit them. Use 'Settings' to tweak\n"
         "colours, size, screenshake, etc. Your tweaks are saved in settings.json\n"
-        "next to this exe.\n")
-ext = ".exe" if sys.platform == "win32" else ""
+        "next to this executable.\n" % ext)
+    if sys.platform != "win32":
+        f.write(
+            "\nLinux notes\n"
+            "-----------\n"
+            "* Wayland sessions: start PCSX2 as an X11 client so the overlay can track\n"
+            "  its window:  QT_QPA_PLATFORM=xcb pcsx2-qt\n"
+            "* For the fast memory-scan path, allow same-user process reads:\n"
+            "  sudo sysctl kernel.yama.ptrace_scope=0   (otherwise a slower PINE-only\n"
+            "  fallback is used automatically).\n")
 print("\nDone -> release/%s%s" % (NAME, ext))

@@ -32,8 +32,7 @@ def classify(a, ppos, tk):
 def main():
     pc = pine.PineClient().connect()
     print("status", pc.status(), pc.title(), pc.game_id())
-    pid = memscan.find_pcsx2_pid()
-    rpm = memscan.RpmReader(pid)
+    rpm = memscan.open_reader(memscan.find_pcsx2_pid(), pc)
     rpm.ee_base = rpm.locate_ee_base(pc)
     sc = memscan.Scanner(rpm)
     tk = S["tracking"]

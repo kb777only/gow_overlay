@@ -7,6 +7,13 @@
 A transparent, always‑on‑top overlay for the PS2 classic *God of War* (emulated via PCSX2).  
 When you hit an enemy, a fiery damage number pops up above them, scales with the damage, floats upward, and fades out – exactly where the enemy is on screen, even if the camera moves.
 
+## 🚀 What's New in v0.4.0 (Partial Linux Support):
+###    🐧 Initial Linux Support: Support for X11 sessions (and Wayland via XWayland) see [Linux-notes](#-linux-notes).
+
+###  🛠️ Direct Memory Scanning: Added process_vm_readv support for ultra-fast actor scanning on Linux.
+
+### 🔌 Unix Socket PINE: Automatically detects and connects to the PCSX2 Unix socket on Linux systems.
+
 ![Demo](assets/demo.gif) *(GIF of in-gme demo to be added soon)*
 
 ## Features
@@ -15,17 +22,18 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 - 📷 **Live camera projection** – uses the game’s camera‑to‑world matrix + calibrated intrinsics. Works through any camera pan, rotate, or zoom.  
 - 💥 **Epic hit feedback** – screenshake, warm edge flash, expanding shockwave ring, and a white‑hot pop for big damage.  
 - 🎨 **Fully customisable** – colours, size, lifetime, tracking behaviour, and all visual effects are tweakable **live** via a GUI settings window (or by editing `settings.json`).  
-- 🐎 **Low performance impact** – actor scanning is vectorised (numpy) and runs on a background thread. The overlay uses `UpdateLayeredWindow` for per‑pixel alpha, with ≤1% CPU on a modern system.  
-- 🎮 **No game modification required** – reads memory via PINE (PCSX2’s built‑in debug interface) and RPM (ReadProcessMemory). Works with the original game ISO, any save state, and persists across level reloads.  
+- 🐎 **Low performance impact** – actor scanning is vectorised (numpy) and runs on a background thread. The overlay draws with per‑pixel alpha (`UpdateLayeredWindow` on Windows, an ARGB X11 window on Linux), with ≤1% CPU on a modern system.  
+- 🎮 **No game modification required** – reads memory via PINE (PCSX2’s built‑in debug interface) and direct process reads (`ReadProcessMemory` / `process_vm_readv`). Works with the original game ISO, any save state, and persists across level reloads.  
+- 🐧 **Cross‑platform** – Windows and Linux (X11 / XWayland), same features on both.  
 - 📦 **Single‑file executable** – PyInstaller build included (see below). Double‑click `launcher.exe`, pick a mode, and play.  
 
 ## 🖥️ Requirements
 
-- **Windows** (7 / 10 / 11) – Linux support is work‑in‑progress (see Roadmap).  
-- **PCSX2** (v1.7+ recommended) – the overlay uses the **PINE** IPC server, which is enabled by default on port `28011`.  
+- **Windows** (7 / 10 / 11) **or Linux** (X11 session, or Wayland via XWayland – see [Linux notes](#-linux-notes)).  
+- **PCSX2** (v1.7+ recommended) – the overlay uses the **PINE** IPC server (TCP port `28011` on Windows, a Unix socket on Linux).  
   - *Check:* In PCSX2, go to `Config > Emulation > Enable PINE Server` (should be on).  
 - **God of War** (SCES‑53133 / SCUS‑97399 / any region with the same actor struct layout – tested on European PAL `SCES-53133`).  
-- **Python 3.8+** (only if running from source) – see [Running from Source](#running-from-source).
+- **Python 3.8+** (only if running from source) – see [Running from Source](#-running-from-source-python).
 
 ## 🚀 Quick Start (Pre‑built `.exe`)
 
@@ -45,6 +53,8 @@ To adjust colours, size, or effect strength, click **Settings** in the launcher 
 
 > 💡 The overlay waits for the game to launch. You can start it before PCSX2 – it will automatically connect once the game is running, or automatically detect it if the game is already running (can be started/stopped freely during active gameplay).
 
+> 🐧 On Linux, run from source or build a native single‑file binary with `python build.py` (see [Linux notes](#-linux-notes)).
+
 ## 🔧 Running from Source (Python)
 
 If you prefer to run the Python scripts directly (e.g., for development or customisation):
@@ -52,5 +62,29 @@ If you prefer to run the Python scripts directly (e.g., for development or custo
 ```bash
 git clone https://github.com/kb777only/gow_overlay.git
 cd gow_overlay
-pip install -r requirements.txt   # numpy, pillow, (optional: distro, tkinter)
+pip install -r requirements.txt   # numpy, pillow (tkinter from your OS / distro)
 python ./app/gow_overlay.py
+```
+
+## 🐧 Linux notes
+
+Linux is fully supported. The overlay is an X11 client (ARGB override‑redirect window – the X equivalent of Windows' layered windows), so:
+
+- **X11 sessions** work out of the box.
+- **Wayland sessions** work through XWayland, but PCSX2 must also run as an X11 client so the overlay can find and follow its window:
+
+  ```bash
+  QT_QPA_PLATFORM=xcb pcsx2-qt
+  ```
+
+- A **compositing** desktop (KDE, GNOME, anything modern) is required for the transparency; bare WMs need a compositor like `picom`.
+
+**Memory reading.** The fast scan path reads PCSX2's memory directly with `process_vm_readv`. Most distros restrict this by default (`kernel.yama.ptrace_scope = 1`); allow it with:
+
+```bash
+sudo sysctl kernel.yama.ptrace_scope=0    # or persist it in /etc/sysctl.d/
+```
+
+If it stays restricted the overlay automatically falls back to PINE‑only reads – everything still works, enemies are just discovered a little more slowly after spawning.
+
+**PINE on Linux** is a Unix socket at `$XDG_RUNTIME_DIR/pcsx2.sock` (handled automatically – nothing to configure beyond enabling the PINE server in PCSX2).

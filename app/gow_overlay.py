@@ -25,26 +25,15 @@ Run:
   python gow_overlay.py --simulate    inject demo hits
 """
 import sys
-import os
 import time
 import random
 import threading
 
-# ---------------------------------- WIP ----------------------------------
-import _linux_support_wip_tools as ltools
-if "posix" in os.name and ltools.Info.l_rdy == False:
-    if "--force" in sys.argv:
-        print(ltools.FORCE_WARNING_MESSAGE)
-    else:
-        ltools.ProgTrk.LinuxDevProgError()
-else:
-    import pine
-    import memscan
-    import enemy
-    import liveproj
-    import winutil
-# ---------------------------------- WIP ----------------------------------
-
+import pine
+import memscan
+import enemy
+import liveproj
+import winutil
 
 import config as cfg
 import overlay as overlay_mod
@@ -53,8 +42,8 @@ from settings import S
 
 MARGIN = 80               # allow numbers this far past the client edge before culling
 
-# --- logging verbosity & force arg ---
-SILENT, DMG, NORMAL, VERBOSE, FORCE = 0, 1, 2, 3, 99
+# --- logging verbosity ---
+SILENT, DMG, NORMAL, VERBOSE = 0, 1, 2, 3
 
 
 def parse_level(argv):
@@ -121,6 +110,7 @@ def wait_for_game(poll=1.0):
     """Block until PCSX2 is running with a game loaded (PINE up + window present).
     Returns (PineClient, pid, hwnd). Prints a waiting message once."""
     announced = False
+    no_window = 0
     while True:
         pid = memscan.find_pcsx2_pid()
         hwnd = winutil.find_pcsx2_window()
@@ -132,6 +122,12 @@ def wait_for_game(poll=1.0):
                 pc.close()
             except Exception:
                 pass
+        if pid and not hwnd and sys.platform != "win32":
+            no_window += 1
+            if no_window == 5:      # persistent, not a startup race -> likely Wayland
+                print("PCSX2 is running but its window is not visible to X11.\n"
+                      "If you are on Wayland, start PCSX2 as an X11 client so the overlay "
+                      "can track it:\n    QT_QPA_PLATFORM=xcb pcsx2-qt", flush=True)
         if not announced:
             print("Waiting for game to launch...", flush=True)
             announced = True
@@ -146,7 +142,7 @@ def main():
     if LEVEL >= NORMAL:
         print("connected:", pc.title(), pc.game_id())
 
-    rpm = memscan.RpmReader(pid)
+    rpm = memscan.open_reader(pid, pc)      # direct reads, or PINE-only fallback
     base = None
     for attempt in range(8):
         base = rpm.locate_ee_base(pc)       # re-samples each try (fresh pivot)

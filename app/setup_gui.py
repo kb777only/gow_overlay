@@ -133,8 +133,8 @@ class SetupApp:
             anchor="w", padx=10, pady=(8, 2))
         self.slider(t, "Scan period (s)", ("tracking", "scan_period"), 0.1, 1.5)
         self.slider(t, "Near-player dist", ("tracking", "near_player_dist"), 100, 4000, True)
-        self.slider(t, "Creature min HP", ("tracking", "creature_min_hp"), 1, 50, True)
-        self.slider(t, "Creature max HP", ("tracking", "creature_max_hp"), 50, 5000, True)
+        self.slider(t, "Creature min HP", ("tracking", "creature_min_hp"), 3, 50, True)
+        self.slider(t, "Creature max HP", ("tracking", "creature_max_hp"), 30, 5000, True)
 
         # bottom bar
         bar = ttk.Frame(self.root); bar.pack(fill="x", padx=8, pady=(0, 8))
@@ -148,10 +148,13 @@ class SetupApp:
         self._build()
 
     def _open_json(self):
-        try:
-            os.startfile(S.path)            # Windows
-        except Exception:
-            subprocess.Popen(["notepad", S.path])
+        if sys.platform == "win32":
+            try:
+                os.startfile(S.path)
+            except Exception:
+                subprocess.Popen(["notepad", S.path])
+        else:
+            subprocess.Popen(["xdg-open", S.path])
 
 
 def main():

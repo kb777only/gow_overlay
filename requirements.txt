@@ -1,6 +1,10 @@
-# runtime (tkinter ships with Python on Windows)
+# runtime (tkinter ships with Python on Windows; on Linux install your distro's
+# Tk package, e.g. `tk` on Arch, `python3-tk` on Debian/Ubuntu)
 numpy
 pillow
 
-# to build the .exe (release build only):
+# Linux also needs the X11 client libraries at runtime (virtually always already
+# installed on a desktop): libX11, libXext, and libXtst (input synthesis only).
+
+# to build the executable (release build only):
 #   python -m pip install pyinstaller

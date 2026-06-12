@@ -51,8 +51,19 @@ def _self_cmd():
     return [sys.executable, os.path.join(HERE, "launcher.py")]
 
 
+def _terminal_candidates():
+    """Terminal emulators to try on Linux: (executable, argv prefix that makes
+    the rest of the command run inside it)."""
+    cands = []
+    term = os.environ.get("TERMINAL")
+    if term:
+        cands.append((term, ["-e"]))                 # the common convention
+    cands += [("konsole", ["-e"]), ("gnome-terminal", ["--"]), ("xfce4-terminal", ["-x"]),
+              ("kitty", []), ("alacritty", ["-e"]), ("foot", []), ("xterm", ["-e"])]
+    return cands
+
+
 def _spawn(extra, show_console):
-    flags = CREATE_NEW_CONSOLE if show_console else CREATE_NO_WINDOW
     env = os.environ.copy()
     # A PyInstaller one-file child must NOT inherit the parent's _MEIPASS2: if it
     # does, it reuses the launcher's temp-extract dir instead of making its own and
@@ -60,11 +71,26 @@ def _spawn(extra, show_console):
     # is what made the .exe crash on the 2nd run. Strip it so the child extracts fresh.
     for v in ("_MEIPASS2", "_PYI_ARCHIVE_FILE", "_PYI_APPLICATION_HOME_DIR", "_PYI_PARENT_PROCESS_LEVEL"):
         env.pop(v, None)
-    subprocess.Popen(_self_cmd() + extra, creationflags=flags, cwd=HERE,
-                     close_fds=True, env=env)
+    cmd = _self_cmd() + extra
+    if sys.platform == "win32":
+        flags = CREATE_NEW_CONSOLE if show_console else CREATE_NO_WINDOW
+        subprocess.Popen(cmd, creationflags=flags, cwd=HERE, close_fds=True, env=env)
+        return
+    if show_console:
+        import shutil
+        for name, prefix in _terminal_candidates():
+            if shutil.which(name):
+                subprocess.Popen([name] + prefix + cmd, cwd=HERE, env=env,
+                                 start_new_session=True)
+                return
+        # no terminal emulator found - run anyway, just without visible logs
+    subprocess.Popen(cmd, cwd=HERE, env=env, start_new_session=True,
+                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _hide_console():
+    if sys.platform != "win32":
+        return
     try:
         import ctypes
         from ctypes import wintypes
@@ -167,7 +193,8 @@ class LauncherApp:
             messagebox.showinfo("Damage overlay",
                                 "The overlay is now running in the background.\n\n"
                                 "Damage numbers will appear over enemies in-game.\n"
-                                "Close it any time from Task Manager (python/exe).")
+                                "Close it any time from Task Manager / your system\n"
+                                "monitor (python or the app executable).")
         else:
             _spawn(["--run", mode], show_console=True)
         self.root.destroy()

@@ -2,7 +2,10 @@
 pine.py - Minimal, robust client for PCSX2's PINE IPC protocol.
 
 On Windows PCSX2 exposes PINE as a TCP server on 127.0.0.1:<slot> (default
-slot/port 28011). The wire format (confirmed against pcsx2/PINE.cpp):
+slot/port 28011). On Linux/macOS it is a Unix domain socket instead:
+$XDG_RUNTIME_DIR/pcsx2.sock (/tmp if XDG_RUNTIME_DIR is unset), with a
+".<slot>" suffix for non-default slots. The wire format is identical on both
+(confirmed against pcsx2/PINE.cpp):
 
   Request:
     u32  total_length      (little-endian, INCLUDES these 4 bytes, must be >= 4)
@@ -32,8 +35,10 @@ game data typically lives at 0x00100000+). Values are little-endian.
 
 from __future__ import annotations
 
+import os
 import socket
 import struct
+import sys
 from typing import Iterable, List, Sequence, Tuple, Union
 
 # --- opcodes -----------------------------------------------------------------
@@ -72,18 +77,34 @@ class PineError(RuntimeError):
 
 
 class PineClient:
-    def __init__(self, host: str = "127.0.0.1", port: int = 28011, timeout: float = 3.0):
+    def __init__(self, host: str = "127.0.0.1", port: int = 28011, timeout: float = 3.0,
+                 socket_path: str | None = None):
         self.host = host
-        self.port = port
+        self.port = port               # the PINE "slot" (also names the Unix socket)
         self.timeout = timeout
+        self.socket_path = socket_path
         self._sock: socket.socket | None = None
+
+    def _default_socket_path(self) -> str:
+        # matches pcsx2/PINE.cpp: $XDG_RUNTIME_DIR/pcsx2.sock (or /tmp), and a
+        # ".<slot>" suffix when a non-default slot is configured
+        base = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
+        name = "pcsx2.sock"
+        if self.port != 28011:
+            name += f".{self.port}"
+        return os.path.join(base, name)
 
     # -- connection ----------------------------------------------------------
     def connect(self) -> "PineClient":
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(self.timeout)
-        s.connect((self.host, self.port))
-        s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        if sys.platform == "win32":
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            s.settimeout(self.timeout)
+            s.connect((self.host, self.port))
+            s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+        else:
+            s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            s.settimeout(self.timeout)
+            s.connect(self.socket_path or self._default_socket_path())
         self._sock = s
         return self
 
