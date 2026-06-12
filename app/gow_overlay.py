@@ -73,7 +73,14 @@ class Tracker(threading.Thread):
         while self._run:
             tk = S["tracking"]
             period = tk["scan_period"]
+            t0 = time.time()
             try:
+                # PINE-read scans make PCSX2's PINE thread do real work, which a
+                # slow CPU feels in game speed. Skip scans while paused (nothing
+                # spawns), and below pace them so scanning stays a small duty cycle.
+                pcc = getattr(self.sc.reader, "pc", None)
+                if pcc is not None and pcc.status() != 0:
+                    time.sleep(period); continue
                 found = enemy.scan(self.sc, creature_min=tk["creature_min_hp"],
                                    creature_max=tk["creature_max_hp"])
                 self._fails = 0
@@ -107,7 +114,10 @@ class Tracker(threading.Thread):
                         self.actors[b]["miss"] += 1
                         if self.actors[b]["miss"] > 3:
                             del self.actors[b]
-            time.sleep(period)
+            # pace by how long the scan actually took (<=25% duty): direct reads
+            # are ~0.1s so this stays at scan_period; PINE reads self-throttle so
+            # the emulator keeps its CPU on weak machines.
+            time.sleep(max(period, 3.0 * (time.time() - t0)))
 
     def stop(self):
         self._run = False

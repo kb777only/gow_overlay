@@ -13,7 +13,18 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 ![Demo](assets/demo.gif)
 
 
-## 🚀 What's New in v0.5.0 (Full Wayland Support):
+## 🚀 What's New in v0.6.0 (Performance):
+
+### 🐎 The overlay now stays out of the emulator's way, even on slow machines:
+
+- **Idle renderer**: with no numbers on screen (most of the time!), the overlay used to push a full transparent frame to the display server 60×/second. It now draws *nothing* until a hit lands – near-zero CPU, display-server and compositor load while you play.
+- **Dirty-rectangle rendering**: while numbers are on screen, only the small region around them is composited and uploaded instead of the whole window (~5× less CPU).
+- **Lighter memory scans**: enemy discovery over PINE uses 64-bit reads (40% less emulator-side CPU per scan), paces itself to a ≤25% duty cycle however slow the machine, and skips scanning entirely while the game is paused.
+- **Big-hit edge flash** (the one full-frame effect) renders at half rate during its 0.4 s burst – visually identical, half the cost.
+
+See the new [Performance](#-performance) section for measured numbers and tuning tips.
+
+## What's New in v0.5.0 (Full Wayland Support):
 
 ### 🌊 Native Wayland support – no setup needed: the overlay now tracks PCSX2 even when it runs as a native Wayland client. The game window is located through the compositor itself (KDE/KWin, Hyprland and Sway), so `QT_QPA_PLATFORM=xcb` is no longer required.
 
@@ -34,7 +45,7 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 - 📷 **World-Space Projection Engine** – GoW projects objects individually (a PS2 VU quirk), it lacks a standard global camera matrix. This uses a custom projection model calibrated through multi‑frame triangulation (matching actor world-coords to screen pixels) to pin numbers in 3D space through any pan, rotate, or zoom.  
 - 💥 **Epic hit feedback** – screenshake, warm edge flash, expanding shockwave ring, and a white‑hot pop for big damage.  
 - 🎨 **Fully customisable** – colours, size, lifetime, tracking behaviour, and all visual effects are tweakable **live** via a GUI settings window (or by editing `settings.json`).  
-- 🐎 **Low performance impact** – actor scanning is vectorised (numpy) and runs on a background thread. The overlay draws with per‑pixel alpha (`UpdateLayeredWindow` on Windows, an ARGB X11 window on Linux), with ≤1% CPU on a modern system.  
+- 🐎 **Low performance impact** – the renderer goes fully idle when no numbers are on screen and only touches the pixels around them when there are (dirty rectangles); enemy scanning is vectorised (numpy), runs on a background thread, and paces itself so the emulator always keeps its CPU. See [Performance](#-performance).  
 - 🎮 **No game modification required** – reads memory via PINE (PCSX2’s built‑in debug interface) and direct process reads (`ReadProcessMemory` / `process_vm_readv`). Works with the original game ISO, any save state, and persists across level reloads.  
 - 🐧 **Cross‑platform** – Windows and Linux (X11 **and Wayland**), same features on both.  
 - 📦 **Easy to run** – one‑file executable, AppImage, or Flatpak. Pick a mode in the launcher and play.  
@@ -91,6 +102,23 @@ python build.py flatpak    # Flatpak bundle     -> release/GoW-Damage-Overlay-<v
 ```
 
 The binary/AppImage builds need PyInstaller (`pip install pyinstaller`); the AppImage build fetches `appimagetool` automatically on first use. The flatpak build needs `flatpak` with the Flathub remote and builds everything else itself (manifest in `packaging/flatpak/`).
+
+## ⚡ Performance
+
+All figures below were measured on an **Intel Core i3-3240** (2 cores / 4 threads, 3.4 GHz, Ivy Bridge 2012, 8 GB RAM) – extremely low-end hardware by today's standards, and deliberately so: it's representative of the machines retro games actually get played on. On anything newer the overlay's footprint shrinks accordingly.
+
+The overlay is built so the emulator never has to share its CPU with it in any meaningful way:
+
+- **Waiting / no numbers on screen** (most of gameplay): the renderer skips work entirely – **~1% of one core**, zero display-server traffic, zero compositor load.
+- **Numbers on screen**: only the rectangle around the numbers is composited and uploaded – **~14% of one core** while numbers float (at a 1060×663 window; scales with window size).
+- **Big-hit feedback** (screenshake + edge flash, ~0.4 s burst): the edge flash is inherently full-frame, so those frames run at 30 fps instead of 60 – **~50% of one core** for the burst duration.
+- **Enemy scanning**: with direct process reads (Windows, or Linux with `ptrace_scope=0`) a full scan takes ~0.1 s and costs the emulator nothing. Over the PINE fallback the scan makes PCSX2's PINE thread work, so it is paced to a **≤25% duty cycle** (the slower the machine, the more it backs off), costs PCSX2 itself only a few percent of one core, and is **skipped entirely while the game is paused**.
+
+**If your machine is really struggling**, in order of effect:
+
+1. **Linux**: allow direct memory reads – `sudo sysctl kernel.yama.ptrace_scope=0` – which takes PCSX2's PINE thread out of the scan path completely (the AppImage/binary builds use it automatically; the Flatpak cannot).
+2. Open **Settings** and disable **edge flash** and **white-hot pop** (the only effects that ever touch the full frame); the screenshake and shockwave ring are cheap.
+3. Increase `tracking.scan_period` in `settings.json` (e.g. to `1.0`) – enemies are discovered a little later after spawning, everything else is unaffected.
 
 ## 🐧 Linux notes
 

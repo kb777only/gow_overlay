@@ -150,12 +150,17 @@ class Backend:
     def move(self, x, y, w, h):
         user32.SetWindowPos(self.hwnd, None, x, y, w, h, SWP_NOACTIVATE | SWP_NOZORDER)
 
-    def present(self, x, y, w, h):
+    def present(self, x, y, w, h, box=None):
+        # UpdateLayeredWindow always replaces the whole window; the DIB outside
+        # `box` is kept correct by the renderer, so box is only a numpy saving.
         pt_dst = POINT(x, y); psize = SIZE(w, h); pt_src = POINT(0, 0)
         blend = BLENDFUNCTION(AC_SRC_OVER, 0, 255, AC_SRC_ALPHA)
         user32.UpdateLayeredWindow(self.hwnd, self._screen_dc, ctypes.byref(pt_dst),
                                    ctypes.byref(psize), self._mem_dc, ctypes.byref(pt_src),
                                    0, ctypes.byref(blend), ULW_ALPHA)
+
+    def idle(self):
+        pass        # WS_EX_TOPMOST keeps the window above without re-presents
 
     def pump(self):
         msg = wintypes.MSG()

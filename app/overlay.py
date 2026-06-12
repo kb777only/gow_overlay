@@ -37,7 +37,8 @@ SHAKE_DUR = 0.28
 FLASH_DUR = 0.42
 FLASH_COLOR = (255, 150, 70)
 CALIB_W, CALIB_H = 1124.0, 676.0     # resolution the camera projection is calibrated for
-FRAME_DT = 0.016                     # ~60 Hz
+FRAME_DT = 0.016                     # ~60 Hz while numbers/FX are on screen
+IDLE_DT = 0.05                       # ~20 Hz window-follow ticks while blank
 
 
 def RGB(r, g, b):
@@ -107,6 +108,10 @@ class Overlay:
         self._flash = (0.0, 0.0)        # (intensity, start_time)
         self._geom = None               # last (x,y,w,h) pushed to the window
         self._backend = None
+        self._surf = None               # reused float32 compositing buffer
+        self._blank = False             # window is currently fully transparent
+        self._dirty = None              # bbox drawn this frame [x0,y0,x1,y1]
+        self._prev_dirty = None         # bbox drawn last frame (to erase)
 
     # public API -------------------------------------------------------------
     def spawn(self, cx, cy, text, color=(255, 90, 40), size=34, epic=0.0):
@@ -235,12 +240,18 @@ class Overlay:
         self._running = True
         while self._running:
             t0 = time.time()
+            state = 0
             try:
-                self._render()
+                state = self._render()
             except Exception:
                 pass
             self._backend.pump()
-            time.sleep(max(0.0, FRAME_DT - (time.time() - t0)))
+            # while blank the overlay costs (almost) nothing (state 1): no
+            # compositing or surface pushes, just a low-rate geometry follow +
+            # keep-on-top nudge. Edge-flash frames (state 2) touch the whole
+            # frame, so they run at half rate to spare slow machines.
+            dt_target = IDLE_DT if state == 1 else (FRAME_DT * 2 if state == 2 else FRAME_DT)
+            time.sleep(max(0.0, dt_target - (time.time() - t0)))
         self._backend.close()
 
     def _composite(self, surf, tile, ax, ay, alpha):
@@ -263,8 +274,20 @@ class Overlay:
         reg = surf[cy0:cy1, cx0:cx1]
         reg[:, :, :3] = src_pm + reg[:, :, :3] * (1 - sa)
         reg[:, :, 3:4] = sa * 255.0 + reg[:, :, 3:4] * (1 - sa)
+        self._mark(cx0, cy0, cx1, cy1)
+
+    def _mark(self, x0, y0, x1, y1):
+        """Grow this frame's dirty bbox (the only region converted + uploaded)."""
+        d = self._dirty
+        if d is None:
+            self._dirty = [x0, y0, x1, y1]
+        else:
+            d[0] = min(d[0], x0); d[1] = min(d[1], y0)
+            d[2] = max(d[2], x1); d[3] = max(d[3], y1)
 
     def _render(self):
+        """Draw one frame. Returns 1 when the overlay is blank (idle), 2 when a
+        full-frame effect (edge flash) ran, 0 for a normal active frame."""
         S.maybe_reload()                       # live-apply settings changes
         n = S["numbers"]; e = S["epic"]
         lerp = n["anchor_lerp"]; base_pop = n["pop"]; fade_start = n["fade_start"]
@@ -273,10 +296,25 @@ class Overlay:
         if (x, y, w, h) != self._geom:        # follow the game window live (move + RESIZE)
             self._geom = (x, y, w, h)
             self._backend.move(x, y, w, h)
-        bgra = self._backend.surface(w, h)    # (h,w,4) uint8 BGRA, top-down
-        self._ensure_vignette(w, h)
-        surf = np.zeros((h, w, 4), np.float32)
         now = time.time()
+        amp_, st0_ = self._shake
+        fint_, ft0_ = self._flash
+        with self.lock:
+            content = bool(self.items or self._markers)
+        idle = not (content or (amp_ > 0 and now - st0_ < SHAKE_DUR)
+                    or (fint_ > 0 and now - ft0_ < FLASH_DUR))
+        if idle and self._blank:
+            self._backend.idle()              # nothing to draw, already cleared
+            return 1
+        bgra = self._backend.surface(w, h)    # (h,w,4) uint8 BGRA, top-down
+        self._dirty = None
+        if self._surf is None or self._surf.shape[:2] != (h, w):
+            self._surf = np.zeros((h, w, 4), np.float32)
+            self._prev_dirty = None
+        elif self._prev_dirty:                # erase only what last frame drew
+            px0, py0, px1, py1 = self._prev_dirty
+            self._surf[py0:py1, px0:px1] = 0.0
+        surf = self._surf
         # map the calibrated projection space onto the actual game-render area inside
         # the client (letterbox-aware) so everything scales with the window/fullscreen
         ar = CALIB_W / CALIB_H
@@ -329,21 +367,45 @@ class Overlay:
                 bx, by = to_screen(mx + shx, my + shy)
                 self._composite(surf, self._tile(mtext, mcolor, max(12, int(26 * sc))), bx, by, 1.0)
             self.items = alive
-        # warm edge-flash on impact
+        # warm edge-flash on impact (full-frame by nature)
+        flash_frame = False
         fint, ft0 = self._flash
         fage = now - ft0
-        if fint > 0 and fage < FLASH_DUR and self._vignette is not None:
-            m = (self._vignette * (fint * (1 - fage / FLASH_DUR)))[:, :, None]
-            col = np.array(FLASH_COLOR, np.float32)
-            surf[:, :, :3] = col * m + surf[:, :, :3] * (1 - m)
-            surf[:, :, 3:4] = m * 255.0 + surf[:, :, 3:4] * (1 - m)
-        # to premultiplied BGRA top-down for the platform backend
-        np.clip(surf, 0, 255, out=surf)
-        bgra[:, :, 0] = surf[:, :, 2]
-        bgra[:, :, 1] = surf[:, :, 1]
-        bgra[:, :, 2] = surf[:, :, 0]
-        bgra[:, :, 3] = surf[:, :, 3]
-        self._backend.present(x, y, w, h)
+        if fint > 0 and fage < FLASH_DUR:
+            flash_frame = True
+            self._ensure_vignette(w, h)
+            # in-place lerp (x' = x + a*(target - x)), no (h,w,3) temporaries -
+            # this runs over the whole frame, so allocations would hurt
+            a = self._vignette * np.float32(fint * (1 - fage / FLASH_DUR))
+            for c in range(3):
+                ch = surf[:, :, c]
+                ch += a * (np.float32(FLASH_COLOR[c]) - ch)
+            al = surf[:, :, 3]
+            al += a * (np.float32(255.0) - al)
+            self._mark(0, 0, w, h)
+        # convert + upload only the dirty region: what was drawn this frame plus
+        # what must be erased from the last one. Slow machines feel full-frame
+        # 60 Hz conversions; a couple of damage numbers touch a few % of it.
+        box = self._dirty
+        if self._prev_dirty:
+            box = self._prev_dirty if box is None else [
+                min(box[0], self._prev_dirty[0]), min(box[1], self._prev_dirty[1]),
+                max(box[2], self._prev_dirty[2]), max(box[3], self._prev_dirty[3])]
+        if box is not None:
+            x0 = max(0, box[0]); y0 = max(0, box[1])
+            x1 = min(w, box[2]); y1 = min(h, box[3])
+            if x1 > x0 and y1 > y0:
+                sub = surf[y0:y1, x0:x1]
+                np.clip(sub, 0, 255, out=sub)
+                breg = bgra[y0:y1, x0:x1]
+                breg[:, :, 0] = sub[:, :, 2]
+                breg[:, :, 1] = sub[:, :, 1]
+                breg[:, :, 2] = sub[:, :, 0]
+                breg[:, :, 3] = sub[:, :, 3]
+                self._backend.present(x, y, w, h, (x0, y0, x1, y1))
+        self._prev_dirty = self._dirty
+        self._blank = idle          # idle here means this frame just cleared the window
+        return 1 if idle else (2 if flash_frame else 0)
 
 
 if __name__ == "__main__":

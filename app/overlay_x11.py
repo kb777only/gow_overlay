@@ -185,13 +185,26 @@ class Backend:
         _x11.XRaiseWindow(self._dpy, self.hwnd)
         _x11.XFlush(self._dpy)
 
-    def present(self, x, y, w, h):
-        _x11.XPutImage(self._dpy, self.hwnd, self._gc, self._img, 0, 0, 0, 0, w, h)
+    def present(self, x, y, w, h, box=None):
+        if box:
+            bx0, by0, bx1, by1 = box      # push only the changed region
+            _x11.XPutImage(self._dpy, self.hwnd, self._gc, self._img,
+                           bx0, by0, bx0, by0, bx1 - bx0, by1 - by0)
+        else:
+            _x11.XPutImage(self._dpy, self.hwnd, self._gc, self._img, 0, 0, 0, 0, w, h)
         now = time.time()
         if now - self._last_raise > RAISE_PERIOD:   # stay above the game window
             self._last_raise = now
             _x11.XRaiseWindow(self._dpy, self.hwnd)
         _x11.XFlush(self._dpy)
+
+    def idle(self):
+        """Keep-on-top nudge while the overlay is blank (no pixels pushed)."""
+        now = time.time()
+        if now - self._last_raise > RAISE_PERIOD:
+            self._last_raise = now
+            _x11.XRaiseWindow(self._dpy, self.hwnd)
+            _x11.XFlush(self._dpy)
 
     def pump(self):
         while _x11.XPending(self._dpy):

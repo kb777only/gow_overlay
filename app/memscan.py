@@ -334,22 +334,24 @@ class PineReader:
 
     def read_block(self, ps2_addr: int, size: int) -> bytes:
         import numpy as np
-        # One MsgRead32 per word. The concatenated reply payload is exactly the
-        # raw little-endian memory, so no per-value unpacking is needed; the
-        # request bytes are built vectorised (5 bytes per command).
-        words = size // 4
-        cmds = np.zeros(words, dtype=[("op", "u1"), ("addr", "<u4")])
-        cmds["op"] = pine.MSG_READ32
-        cmds["addr"] = (ps2_addr + 4 * np.arange(words, dtype=np.uint64)).astype(np.uint32)
+        # One MsgRead64 per 8 bytes - half the commands of per-word reads, which
+        # matters: the PINE server iterates commands one by one, and that loop is
+        # what slow CPUs feel during full-window scans. The concatenated reply
+        # payload is exactly the raw little-endian memory, so no per-value
+        # unpacking is needed; request bytes are built vectorised (5 per command).
+        qwords = size // 8
+        cmds = np.zeros(qwords, dtype=[("op", "u1"), ("addr", "<u4")])
+        cmds["op"] = pine.MSG_READ64
+        cmds["addr"] = (ps2_addr + 8 * np.arange(qwords, dtype=np.uint64)).astype(np.uint32)
         raw = cmds.tobytes()
         out = bytearray()
-        chunk = min((pine.MAX_IPC_RETURN_SIZE - 8) // 4, (pine.MAX_IPC_SIZE - 8) // 5)
-        for i in range(0, words, chunk):
-            k = min(chunk, words - i)
+        chunk = min((pine.MAX_IPC_RETURN_SIZE - 8) // 8, (pine.MAX_IPC_SIZE - 8) // 5)
+        for i in range(0, qwords, chunk):
+            k = min(chunk, qwords - i)
             out += self.pc._transact(raw[i * 5:(i + k) * 5])
-        tail = size - words * 4
+        tail = size - qwords * 8
         if tail:
-            out += self.pc.read_bytes(ps2_addr + words * 4, tail)
+            out += self.pc.read_bytes(ps2_addr + qwords * 8, tail)
         return bytes(out)
 
 
