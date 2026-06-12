@@ -9,7 +9,7 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 
 ![Demo](assets/demo.gif) *(GIF of in-gme demo to be added soon)*
 
-## ✨ Features
+## Features
 
 - 🎯 **Attached to enemies** – numbers follow moving targets smoothly.  
 - 📷 **Live camera projection** – uses the game’s camera‑to‑world matrix + calibrated intrinsics. Works through any camera pan, rotate, or zoom.  
