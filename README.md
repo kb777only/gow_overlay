@@ -79,7 +79,7 @@ If you prefer to run the Python scripts directly (e.g., for development or custo
 git clone https://github.com/kb777only/gow_overlay.git
 cd gow_overlay
 pip install -r requirements.txt   # numpy, pillow (tkinter from your OS / distro)
-python ./app/gow_overlay.py
+python ./app/launcher.py
 ```
 
 ## 📦 Building the packages
