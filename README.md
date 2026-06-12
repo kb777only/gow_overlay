@@ -21,6 +21,15 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 
 Recent releases: **v0.6.5** added preset sharing, crash logs + one-click bug reports, and a launcher that stays open for live tweaking; **v0.6.0** cut the overlay's overhead to near zero ([Performance](#-performance)); **v0.5.0** added full Wayland support, PINE auto-setup, and the AppImage/Flatpak packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
 
+## 🗺️ Roadmap
+
+The road to **v1.0.0** is all about spectacle and reach:
+
+- 🔥 **Fire animations on the numbers** – living flames instead of a static glow.
+- 🌈 **Animated, colour-shifting numbers** – ramps that move and breathe with the damage.
+- 🕹️ **Full, verified Steam Deck support** – tested and tuned on the Deck itself, out of the box.
+- ✨ …and more cool stuff not yet planned – ideas welcome in [issues](https://github.com/kb777only/gow_overlay/issues)!
+
 ## ✨ Features
 
 - 🎯 **Attached to enemies** – numbers follow moving targets smoothly.  
