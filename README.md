@@ -1,4 +1,5 @@
-![Icon Name](assets/gow_overlay.ico)# God of War – Damage Overlay for PCSX2
+![Icon Name](assets/gow_overlay.ico)
+# God of War – Damage Overlay for PCSX2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
