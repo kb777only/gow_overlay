@@ -288,7 +288,10 @@ def main():
             hp_xyz = cur_pos.get(a["base"])
             if hp_xyz is not None:
                 s = proj.project(hp_xyz[1], hp_xyz[2], hp_xyz[3])
-                if s:
+                # only follow plausible positions: a torn position read (or a
+                # camera cut mid-frame) must not drag the number off the window
+                if s and (-MARGIN <= s[0] <= overlay_mod.CALIB_W + MARGIN
+                          and -MARGIN <= s[1] <= overlay_mod.CALIB_H + MARGIN):
                     fn.set_target(s[0], s[1] - head)
             alive.append(a)
         active = alive

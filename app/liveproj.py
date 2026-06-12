@@ -27,11 +27,28 @@ class LiveProjection:
         return [("f32", ROT_ADDR + i * 4) for i in range(16)]
 
     def set_matrix(self, vals16):
+        """Adopt the 16 floats at ROT_ADDR as the camera matrix - only if they
+        actually look like one. During loads/menus/camera cuts the game leaves
+        garbage or half-written data there (and a PINE read can tear mid-update);
+        a bad matrix projects numbers anywhere on - or off - screen. Reject such
+        frames and keep the last good matrix. Returns True if adopted."""
         M = np.array([float(v) for v in vals16], dtype=np.float64).reshape(4, 4)
-        self.R = M[:3, :3]; self.cam = M[3, :3]
+        if not np.all(np.isfinite(M)):
+            return False
+        R = M[:3, :3]; cam = M[3, :3]
+        n2 = (R * R).sum(axis=1)                 # rotation rows must be ~unit...
+        if np.any(np.abs(n2 - 1.0) > 0.1):
+            return False
+        if (abs(R[0] @ R[1]) > 0.05 or abs(R[0] @ R[2]) > 0.05
+                or abs(R[1] @ R[2]) > 0.05):     # ...and mutually orthogonal
+            return False
+        if np.any(np.abs(cam) > 1e7):
+            return False
+        self.R = R; self.cam = cam
+        return True
 
     def update(self, pc):
-        self.set_matrix(pc.batch_read(self.reqs()))
+        return self.set_matrix(pc.batch_read(self.reqs()))
 
     def project(self, x, y, z):
         if self.R is None:

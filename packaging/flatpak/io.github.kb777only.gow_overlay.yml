@@ -78,6 +78,7 @@ modules:
     build-commands:
       - install -d /app/share/gow_overlay
       - cp app/*.py app/camcalib.json app/gow_addrs.json app/appinfo.json /app/share/gow_overlay/
+      - cp assets/gow_overlay.png assets/gow_overlay.ico /app/share/gow_overlay/
       - install -Dm755 packaging/flatpak/gow-overlay.sh /app/bin/gow-overlay
       - python3 -c "from PIL import Image; Image.open('assets/gow_overlay.ico').convert('RGBA').resize((256,256), Image.LANCZOS).save('gow_overlay.png')"
       - install -Dm644 gow_overlay.png /app/share/icons/hicolor/256x256/apps/io.github.kb777only.gow_overlay.png

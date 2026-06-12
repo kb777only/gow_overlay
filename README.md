@@ -12,13 +12,12 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
   
 ![Demo](assets/demo.gif)
 
-## 🚀 What's New in v0.6.5
+## 🚀 What's New in v0.6.9
 
-- 🎁 **Preset sharing** – the Settings window now has **Import… / Export…** buttons: save your whole look (colours, sizes, effects, tracking) as a single `.json` preset and share it. Presets from other versions merge safely over the defaults.
-- 📋 **Crash logs for easy bug reports** – every overlay run (and any crash, even in background threads) is logged. The launcher's **Copy last log** button puts the latest log on your clipboard, and **Report an issue** takes you straight to the issue tracker. See [Reporting bugs](#-reporting-bugs).
-- 🪟 **The launcher stays open** after starting the overlay, so you can open **Settings** and live-tweak while you play. Start re-arms when the overlay exits, and closing the launcher leaves the overlay running.
+- 🎯 **Fixed misplaced damage numbers** – numbers could occasionally pop up in the wrong spot, or even outside the game view. Cause: during loads, menus and camera cuts the game's camera-matrix memory briefly holds garbage (and reads can tear mid-update), which projected hits anywhere. The overlay now validates every camera matrix before using it (keeping the last good one) and ignores implausible position updates, so numbers stay glued to enemies.
+- 🖼️ **App icon everywhere** – the launcher and Settings windows, the overlay window, and the Windows `.exe` itself now carry the GoW overlay icon.
 
-Recent releases: **v0.6.0** cut the overlay's overhead to near zero ([Performance](#-performance)); **v0.5.0** added full Wayland support, PINE auto-setup, and the AppImage/Flatpak packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
+Recent releases: **v0.6.5** added preset sharing, crash logs + one-click bug reports, and a launcher that stays open for live tweaking; **v0.6.0** cut the overlay's overhead to near zero ([Performance](#-performance)); **v0.5.0** added full Wayland support, PINE auto-setup, and the AppImage/Flatpak packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
 
 ## ✨ Features
 

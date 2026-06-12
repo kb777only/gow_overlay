@@ -196,7 +196,9 @@ class SetupApp:
 
 
 def main():
+    import respath
     root = tk.Tk()
+    respath.set_tk_icon(root)
     SetupApp(root)
     root.mainloop()
 

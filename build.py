@@ -32,7 +32,7 @@ with open(os.path.join(APP, "appinfo.json")) as f:
 
 MODULES = ["gow_overlay", "overlay", "liveproj", "enemy", "memscan", "pine",
            "winutil", "winshot", "emu", "config", "settings", "setup_gui",
-           "pcsx2cfg", "applog"]
+           "pcsx2cfg", "applog", "respath"]
 if sys.platform == "win32":
     MODULES += ["winutil_win32", "overlay_win32"]
 else:
@@ -45,9 +45,13 @@ def build_binary():
             "--add-data", os.path.join(APP, "camcalib.json") + SEP + ".",
             "--add-data", os.path.join(APP, "gow_addrs.json") + SEP + ".",
             "--add-data", os.path.join(APP, "appinfo.json") + SEP + ".",
+            "--add-data", os.path.join(ROOT, "assets", "gow_overlay.png") + SEP + ".",
+            "--add-data", os.path.join(ROOT, "assets", "gow_overlay.ico") + SEP + ".",
             "--distpath", RELEASE,
             "--workpath", BUILDDIR,
             "--specpath", BUILDDIR]
+    if sys.platform == "win32":      # taskbar/explorer icon for the .exe itself
+        args += ["--icon", os.path.join(ROOT, "assets", "gow_overlay.ico")]
     for m in MODULES:
         args += ["--hidden-import", m]
     args.append("launcher.py")

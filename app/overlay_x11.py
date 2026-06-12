@@ -105,6 +105,10 @@ _x11.XPutImage.argtypes = [Display_p, Window, GC, ctypes.POINTER(XImage),
                            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                            ctypes.c_uint, ctypes.c_uint]
 _x11.XMapRaised.argtypes = [Display_p, Window]
+_x11.XInternAtom.restype = ctypes.c_ulong
+_x11.XInternAtom.argtypes = [Display_p, ctypes.c_char_p, ctypes.c_int]
+_x11.XChangeProperty.argtypes = [Display_p, Window, ctypes.c_ulong, ctypes.c_ulong,
+                                 ctypes.c_int, ctypes.c_int, ctypes.c_void_p, ctypes.c_int]
 _x11.XRaiseWindow.argtypes = [Display_p, Window]
 _x11.XMoveResizeWindow.argtypes = [Display_p, Window, ctypes.c_int, ctypes.c_int,
                                    ctypes.c_uint, ctypes.c_uint]
@@ -149,7 +153,8 @@ class Backend:
                                        32, InputOutput, vinfo.visual, mask, ctypes.byref(attrs))
         if not self.hwnd:
             raise RuntimeError("XCreateWindow failed")
-        _x11.XStoreName(self._dpy, self.hwnd, b"overlay")
+        _x11.XStoreName(self._dpy, self.hwnd, b"GoW Damage Overlay")
+        self._set_identity()
         # empty input region -> clicks fall through to the game underneath
         _xext.XShapeCombineRectangles(self._dpy, self.hwnd, ShapeInput, 0, 0, None, 0,
                                       ShapeSet, 0)
@@ -162,6 +167,33 @@ class Backend:
         self.surface(w, h)
         _x11.XMapRaised(self._dpy, self.hwnd)
         _x11.XFlush(self._dpy)
+
+    def _set_identity(self):
+        """Best-effort WM_CLASS + _NET_WM_ICON so window tools (and any
+        compositor UI that lists the window) show who we are."""
+        try:
+            XA_STRING, PropModeReplace = 31, 0
+            cls = b"gow_overlay\0GoW-Damage-Overlay\0"
+            wm_class = _x11.XInternAtom(self._dpy, b"WM_CLASS", False)
+            _x11.XChangeProperty(self._dpy, self.hwnd, wm_class, XA_STRING, 8,
+                                 PropModeReplace, cls, len(cls))
+            from PIL import Image
+            from respath import asset_path
+            p = asset_path("gow_overlay.png")
+            if not p:
+                return
+            img = Image.open(p).convert("RGBA").resize((64, 64))
+            a = np.asarray(img).astype(np.uint64)
+            argb = ((a[:, :, 3] << 24) | (a[:, :, 0] << 16)
+                    | (a[:, :, 1] << 8) | a[:, :, 2]).flatten()
+            data = [64, 64] + argb.tolist()
+            arr = (ctypes.c_ulong * len(data))(*data)
+            icon = _x11.XInternAtom(self._dpy, b"_NET_WM_ICON", False)
+            cardinal = _x11.XInternAtom(self._dpy, b"CARDINAL", False)
+            _x11.XChangeProperty(self._dpy, self.hwnd, icon, cardinal, 32,
+                                 PropModeReplace, arr, len(data))
+        except Exception:
+            pass
 
     def surface(self, w, h) -> np.ndarray:
         """(Re)allocate the BGRA frame buffer + its XImage wrapper."""

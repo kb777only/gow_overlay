@@ -257,7 +257,9 @@ def main():
     if getattr(sys, "frozen", False):
         _hide_console()
     import tkinter as tk
+    import respath
     root = tk.Tk()
+    respath.set_tk_icon(root)
     LauncherApp(root)
     root.mainloop()
 
