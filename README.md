@@ -1,4 +1,4 @@
-# God of War – Damage Overlay for PCSX2
+![Icon Name](assets/gow_overlay.ico)# God of War – Damage Overlay for PCSX2
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -6,7 +6,7 @@
 A transparent, always‑on‑top overlay for the PS2 classic *God of War* (emulated via PCSX2).  
 When you hit an enemy, a fiery damage number pops up above them, scales with the damage, floats upward, and fades out – exactly where the enemy is on screen, even if the camera moves.
 
-![Demo](docs/demo.gif) *(GIF of in-gme demo to be added soon)*
+![Demo](assets/demo.gif) *(GIF of in-gme demo to be added soon)*
 
 ## ✨ Features
 
