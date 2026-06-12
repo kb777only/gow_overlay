@@ -19,3 +19,6 @@ cheat_table_UPC/
 # user-generated logs (from-source runs)
 app/gow_overlay.log
 app/gow_overlay.prev.log
+
+# release notes (uploaded as GitHub Release descriptions, not part of the source)
+RELEASE_NOTES_*.md
