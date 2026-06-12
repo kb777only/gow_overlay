@@ -52,7 +52,7 @@ See the new [Performance](#-performance) section for measured numbers and tuning
 
 ## 🖥️ Requirements
 
-- **Windows** (7 / 10 / 11) **or Linux** (X11 or Wayland session – see [Linux notes](#-linux-notes)).  
+- **Windows** (10 / 11 – the prebuilt `.exe` bundles Python 3.12, which needs Windows 10+) **or Linux** (X11 or Wayland session – see [Linux notes](#-linux-notes)).  
 - **PCSX2** (v1.7+ recommended) – the overlay uses the **PINE** IPC server (TCP port `28011` on Windows, a Unix socket on Linux).  
   - The overlay **enables PINE for you** in PCSX2's config when PCSX2 isn't running. If PCSX2 is already running with PINE off, it tells you where to click (`Settings > Advanced > PINE > Enable`).  
 - **God of War** (SCES‑53133 / SCUS‑97399 / any region with the same actor struct layout – tested on European PAL `SCES-53133`).  
