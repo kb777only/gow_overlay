@@ -6,7 +6,7 @@
 A transparent, always‑on‑top overlay for the PS2 classic *God of War* (emulated via PCSX2).  
 When you hit an enemy, a fiery damage number pops up above them, scales with the damage, floats upward, and fades out – exactly where the enemy is on screen, even if the camera moves.
 
-![Demo](docs/demo.gif) *(Will soon be replaced with an in-game capture gif)*
+![Demo](docs/demo.gif) *(GIF of in-gme demo to be added soon)*
 
 ## ✨ Features
 
@@ -52,3 +52,4 @@ If you prefer to run the Python scripts directly (e.g., for development or custo
 git clone https://github.com/kb777only/gow_overlay.git
 cd gow_overlay
 pip install -r requirements.txt   # numpy, pillow, (optional: distro, tkinter)
+python ./app/gow_overlay.py
