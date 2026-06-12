@@ -7,7 +7,7 @@
 A transparent, always‑on‑top overlay for the PS2 classic *God of War* (emulated via PCSX2).  
 When you hit an enemy, a fiery damage number pops up above them, scales with the damage, floats upward, and fades out – exactly where the enemy is on screen, even if the camera moves.
 
-## Demo with lowered EpicFX thresholds for demonstration:
+### Demo with lowered EpicFX thresholds for demonstration:
   (configurable by clicking Setup in the Launcher)
 ![Demo](assets/demo.gif)
 
