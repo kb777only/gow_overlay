@@ -125,6 +125,23 @@ class Settings:
         self.data = copy.deepcopy(DEFAULTS)
         self.save()
 
+    # -- preset sharing ------------------------------------------------------
+    def export_to(self, path):
+        """Write the current settings to `path` (a shareable preset file)."""
+        with open(path, "w") as f:
+            json.dump(self.data, f, indent=2)
+
+    def import_from(self, path):
+        """Load a preset file and make it the active settings. The preset is
+        merged over the defaults, so files from older/newer versions work -
+        missing keys keep their defaults."""
+        with open(path) as f:
+            loaded = json.load(f)
+        if not isinstance(loaded, dict) or not (loaded.keys() & DEFAULTS.keys()):
+            raise ValueError("not a GoW-overlay settings file")
+        self.data = _deepmerge(DEFAULTS, loaded)
+        self.save()
+
     @property
     def path(self):
         return _PATH

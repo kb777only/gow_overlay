@@ -189,6 +189,8 @@ def wait_for_game(poll=1.0):
 
 def main():
     global LEVEL
+    import applog
+    applog.start("overlay " + (" ".join(sys.argv[1:]) or "normal"))
     LEVEL = parse_level(sys.argv)
     cfg.load()
     pc, pid, hwnd = wait_for_game()

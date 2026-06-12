@@ -12,138 +12,101 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
   
 ![Demo](assets/demo.gif)
 
+## 🚀 What's New in v0.6.5
 
-## 🚀 What's New in v0.6.0 (Performance):
+- 🎁 **Preset sharing** – the Settings window now has **Import… / Export…** buttons: save your whole look (colours, sizes, effects, tracking) as a single `.json` preset and share it. Presets from other versions merge safely over the defaults.
+- 📋 **Crash logs for easy bug reports** – every overlay run (and any crash, even in background threads) is logged. The launcher's **Copy last log** button puts the latest log on your clipboard, and **Report an issue** takes you straight to the issue tracker. See [Reporting bugs](#-reporting-bugs).
+- 🪟 **The launcher stays open** after starting the overlay, so you can open **Settings** and live-tweak while you play. Start re-arms when the overlay exits, and closing the launcher leaves the overlay running.
 
-### 🐎 The overlay now stays out of the emulator's way, even on slow machines:
+Recent releases: **v0.6.0** cut the overlay's overhead to near zero ([Performance](#-performance)); **v0.5.0** added full Wayland support, PINE auto-setup, and the AppImage/Flatpak packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
 
-- **Idle renderer**: with no numbers on screen (most of the time!), the overlay used to push a full transparent frame to the display server 60×/second. It now draws *nothing* until a hit lands – near-zero CPU, display-server and compositor load while you play.
-- **Dirty-rectangle rendering**: while numbers are on screen, only the small region around them is composited and uploaded instead of the whole window (~5× less CPU).
-- **Lighter memory scans**: enemy discovery over PINE uses 64-bit reads (40% less emulator-side CPU per scan), paces itself to a ≤25% duty cycle however slow the machine, and skips scanning entirely while the game is paused.
-- **Big-hit edge flash** (the one full-frame effect) renders at half rate during its 0.4 s burst – visually identical, half the cost.
-
-See the new [Performance](#-performance) section for measured numbers and tuning tips.
-
-## What's New in v0.5.0 (Full Wayland Support):
-
-### 🌊 Native Wayland support – no setup needed: the overlay now tracks PCSX2 even when it runs as a native Wayland client. The game window is located through the compositor itself (KDE/KWin, Hyprland and Sway), so `QT_QPA_PLATFORM=xcb` is no longer required.
-
-### 🔌 PINE auto-setup: PCSX2 updates silently turn its PINE server off, which used to leave the overlay waiting forever. The overlay now switches PINE on in PCSX2's config for you (when PCSX2 isn't running), and tells you exactly what to click if it is.
-
-### 🩺 Clear status messages: "Waiting for game" now diagnoses precisely what's missing – PCSX2 not started, PINE off, game not loaded, or window not trackable.
-
-### 📦 Linux packages: prebuilt **AppImage** and **Flatpak** builds (see below), plus the existing one-file binary build.
-
-### 🐛 Fixed "0 enemies" on Linux: with the PINE-only fallback (the default on most distros), the enemy scanner and the render loop raced on the single PINE socket and corrupted each other's replies, so no enemies were ever tracked and `--simulate` showed nothing. PINE transactions are now serialized and self-heal on errors.
-
-### 🐛 Fixes: `diag.py` crashed with a `KeyError` and used an outdated player heuristic; it now mirrors the live tracker exactly. Persistent enemy-scan failures are now reported instead of silently swallowed.
-
-
-## Features
+## ✨ Features
 
 - 🎯 **Attached to enemies** – numbers follow moving targets smoothly.  
 - 📷 **World-Space Projection Engine** – GoW projects objects individually (a PS2 VU quirk), it lacks a standard global camera matrix. This uses a custom projection model calibrated through multi‑frame triangulation (matching actor world-coords to screen pixels) to pin numbers in 3D space through any pan, rotate, or zoom.  
 - 💥 **Epic hit feedback** – screenshake, warm edge flash, expanding shockwave ring, and a white‑hot pop for big damage.  
-- 🎨 **Fully customisable** – colours, size, lifetime, tracking behaviour, and all visual effects are tweakable **live** via a GUI settings window (or by editing `settings.json`).  
-- 🐎 **Low performance impact** – the renderer goes fully idle when no numbers are on screen and only touches the pixels around them when there are (dirty rectangles); enemy scanning is vectorised (numpy), runs on a background thread, and paces itself so the emulator always keeps its CPU. See [Performance](#-performance).  
-- 🎮 **No game modification required** – reads memory via PINE (PCSX2’s built‑in debug interface) and direct process reads (`ReadProcessMemory` / `process_vm_readv`). Works with the original game ISO, any save state, and persists across level reloads.  
+- 🎨 **Fully customisable** – everything is tweakable **live** via a GUI settings window, and shareable as presets.  
+- 🐎 **Low performance impact** – the renderer goes fully idle when nothing is on screen and touches only the pixels around the numbers when there is; scanning paces itself so the emulator always keeps its CPU. See [Performance](#-performance).  
+- 🎮 **No game modification required** – reads memory via PINE (PCSX2's built‑in debug interface) and direct process reads. Works with the original ISO, any save state, and persists across level reloads.  
 - 🐧 **Cross‑platform** – Windows and Linux (X11 **and Wayland**), same features on both.  
-- 📦 **Easy to run** – one‑file executable, AppImage, or Flatpak. Pick a mode in the launcher and play.  
 
 ## 🖥️ Requirements
 
-- **Windows** (10 / 11 – the prebuilt `.exe` bundles Python 3.12, which needs Windows 10+) **or Linux** (X11 or Wayland session – see [Linux notes](#-linux-notes)).  
-- **PCSX2** (v1.7+ recommended) – the overlay uses the **PINE** IPC server (TCP port `28011` on Windows, a Unix socket on Linux).  
-  - The overlay **enables PINE for you** in PCSX2's config when PCSX2 isn't running. If PCSX2 is already running with PINE off, it tells you where to click (`Settings > Advanced > PINE > Enable`).  
-- **God of War** (SCES‑53133 / SCUS‑97399 / any region with the same actor struct layout – tested on European PAL `SCES-53133`).  
-- **Python 3.8+** (only if running from source) – see [Running from Source](#-running-from-source-python).
+- **Windows 10 / 11** (the prebuilt `.exe` bundles Python 3.12) **or Linux** (X11 or Wayland – see [Linux notes](#-linux-notes)).
+- **PCSX2** v1.7+ with its **PINE** server – the overlay switches PINE on in PCSX2's config for you, or tells you exactly where to click if PCSX2 is already running.
+- **God of War** – tested on European PAL `SCES-53133`; other regions with the same actor layout should work.
 
 ## 🚀 Quick Start
 
-**Windows:**
-1. **Download** the latest `gow_overlay.zip` from [Releases](https://github.com/kb777only/gow_overlay/releases) and extract anywhere.  
-2. **Launch** `launcher.exe`.
+Grab a build from [Releases](https://github.com/kb777only/gow_overlay/releases):
 
-**Linux:** download from [Releases](https://github.com/kb777only/gow_overlay/releases) either the
-- **AppImage** – `chmod +x GoW-Damage-Overlay-*.AppImage` and run it, or the  
-- **Flatpak** – `flatpak install --user GoW-Damage-Overlay-*.flatpak`, then launch *GoW Damage Overlay* from your app menu.
+| Platform | File | Run it |
+|---|---|---|
+| Windows | `gow_overlay-<v>-win64.zip` | extract, double-click `GoW-Damage-Overlay.exe` |
+| Linux | `GoW-Damage-Overlay-<v>-x86_64.AppImage` | `chmod +x`, run |
+| Linux | `GoW-Damage-Overlay-<v>.flatpak` | `flatpak install --user <file>`, launch from the app menu |
 
 Then:
-1. **That's it.** It automatically detects GoW and gets to work, or waits for you to start the game.  
-2. In the launcher window, choose:  
-   - **Normal** – overlay + terminal with basic logs.  
-   - **Verbose** – overlay + terminal with all debug data.  
-   - **Damage log** – overlay + terminal showing only damage numbers.  
-   - **Silent (background)** – overlay only, no terminal window.  
-3. Click **Start Overlay**.  
 
-Damage numbers will now appear over enemies whenever you hurt them.  
-To adjust colours, size, or effect strength, click **Settings** in the launcher while the overlay is running – changes apply instantly.
+1. Start the overlay (before or after the game – it waits, and auto-detects a running game).
+2. Pick a mode – **Normal** / **Verbose** / **Damage log** (with a log terminal) or **Silent** (overlay only) – and click **Start Overlay**.
+3. Play. Damage numbers pop over enemies as you hurt them.
 
-> 💡 The overlay waits for the game to launch. You can start it before PCSX2 – it will automatically connect once the game is running, or automatically detect it if the game is already running (can be started/stopped freely during active gameplay).
+The launcher stays open: click **Settings** any time to tune colours, sizes and effects **live while playing**, or to **Import/Export** a preset.
 
-## 🔧 Running from Source (Python)
+## ⚡ Performance
 
-If you prefer to run the Python scripts directly (e.g., for development or customisation):
+All figures were measured on an **Intel Core i3-3240** (2 cores / 4 threads, 3.4 GHz, Ivy Bridge 2012, 8 GB RAM) – extremely low-end hardware by today's standards, and deliberately so: it's representative of the machines retro games actually get played on. On anything newer the overlay's footprint shrinks accordingly.
+
+- **Waiting / no numbers on screen** (most of gameplay): the renderer skips work entirely – **~1% of one core**, zero display-server traffic, zero compositor load.
+- **Numbers on screen**: only the rectangle around the numbers is composited and uploaded – **~14% of one core** (at a 1060×663 window; scales with window size).
+- **Big-hit feedback** (~0.4 s burst): the edge flash is inherently full-frame, so those frames run at 30 fps – **~50% of one core** for the burst.
+- **Enemy scanning**: with direct process reads (Windows, or Linux with `ptrace_scope=0`) a full scan takes ~0.1 s and costs the emulator nothing. Over the PINE fallback it is paced to a **≤25% duty cycle**, costs PCSX2 a few percent of one core, and is **skipped while the game is paused**.
+
+**If your machine is really struggling**, in order of effect:
+
+1. **Linux**: `sudo sysctl kernel.yama.ptrace_scope=0` – direct memory reads take PCSX2's PINE thread out of the scan path completely (the Flatpak always uses PINE reads; AppImage/binary benefit automatically).
+2. **Settings** → disable **edge flash** and **white-hot pop** (the only full-frame effects).
+3. Raise `tracking.scan_period` in `settings.json` (e.g. `1.0`) – enemies are discovered slightly later, nothing else changes.
+
+## 🐧 Linux notes
+
+Works on X11 and Wayland. The overlay is an ARGB X11 window (via XWayland on Wayland – compositors stack it above native Wayland windows); a compositing desktop (KDE, GNOME, anything modern) is required for transparency.
+
+**Finding the game window on Wayland** is automatic on **KDE Plasma** (KWin scripting API), **Hyprland** and **Sway** (IPC). Other compositors (e.g. GNOME) expose no window-tracking interface – start PCSX2 as an X11 client instead:
+
+```bash
+QT_QPA_PLATFORM=xcb pcsx2-qt
+```
+
+**PINE socket**: `$XDG_RUNTIME_DIR/pcsx2.sock` (flatpak PCSX2: `$XDG_RUNTIME_DIR/app/net.pcsx2.PCSX2/pcsx2.sock`) – both found automatically.
+
+Settings live next to the executable, or in `~/.config/gow_overlay/settings.json` for AppImage/Flatpak installs.
+
+## 🐞 Reporting bugs
+
+Something crashed or misbehaved? Every overlay run is logged automatically – including full tracebacks of crashes – so reporting takes a minute:
+
+1. Open the launcher and click **📋 Copy last log** (the log of the run that just ended/crashed is now on your clipboard).
+2. Click **🐞 Report an issue** (or go to [issues](https://github.com/kb777only/gow_overlay/issues)), describe what happened, paste the log.
+
+The log files themselves (`gow_overlay.log`, plus `gow_overlay.prev.log` for the run before) live next to the executable, or in `~/.config/gow_overlay/` for AppImage/Flatpak installs.
+
+## 🛠️ For developers
+
+Run from source (Python 3.8+, `numpy` + `pillow`, tkinter from your distro):
 
 ```bash
 git clone https://github.com/kb777only/gow_overlay.git
 cd gow_overlay
-pip install -r requirements.txt   # numpy, pillow (tkinter from your OS / distro)
+pip install -r requirements.txt
 python ./app/launcher.py
 ```
 
-## 📦 Building the packages
+Build the packages (PyInstaller for binary/AppImage; `flatpak` + Flathub for the flatpak – manifest in `packaging/flatpak/`):
 
 ```bash
 python build.py            # one-file executable -> release/GoW-Damage-Overlay[.exe]
-python build.py appimage   # Linux AppImage     -> release/GoW-Damage-Overlay-<v>-x86_64.AppImage
-python build.py flatpak    # Flatpak bundle     -> release/GoW-Damage-Overlay-<v>.flatpak
+python build.py appimage   # Linux AppImage
+python build.py flatpak    # Flatpak bundle
 ```
-
-The binary/AppImage builds need PyInstaller (`pip install pyinstaller`); the AppImage build fetches `appimagetool` automatically on first use. The flatpak build needs `flatpak` with the Flathub remote and builds everything else itself (manifest in `packaging/flatpak/`).
-
-## ⚡ Performance
-
-All figures below were measured on an **Intel Core i3-3240** (2 cores / 4 threads, 3.4 GHz, Ivy Bridge 2012, 8 GB RAM) – extremely low-end hardware by today's standards, and deliberately so: it's representative of the machines retro games actually get played on. On anything newer the overlay's footprint shrinks accordingly.
-
-The overlay is built so the emulator never has to share its CPU with it in any meaningful way:
-
-- **Waiting / no numbers on screen** (most of gameplay): the renderer skips work entirely – **~1% of one core**, zero display-server traffic, zero compositor load.
-- **Numbers on screen**: only the rectangle around the numbers is composited and uploaded – **~14% of one core** while numbers float (at a 1060×663 window; scales with window size).
-- **Big-hit feedback** (screenshake + edge flash, ~0.4 s burst): the edge flash is inherently full-frame, so those frames run at 30 fps instead of 60 – **~50% of one core** for the burst duration.
-- **Enemy scanning**: with direct process reads (Windows, or Linux with `ptrace_scope=0`) a full scan takes ~0.1 s and costs the emulator nothing. Over the PINE fallback the scan makes PCSX2's PINE thread work, so it is paced to a **≤25% duty cycle** (the slower the machine, the more it backs off), costs PCSX2 itself only a few percent of one core, and is **skipped entirely while the game is paused**.
-
-**If your machine is really struggling**, in order of effect:
-
-1. **Linux**: allow direct memory reads – `sudo sysctl kernel.yama.ptrace_scope=0` – which takes PCSX2's PINE thread out of the scan path completely (the AppImage/binary builds use it automatically; the Flatpak cannot).
-2. Open **Settings** and disable **edge flash** and **white-hot pop** (the only effects that ever touch the full frame); the screenshake and shockwave ring are cheap.
-3. Increase `tracking.scan_period` in `settings.json` (e.g. to `1.0`) – enemies are discovered a little later after spawning, everything else is unaffected.
-
-## 🐧 Linux notes
-
-Linux is fully supported, on both X11 and Wayland sessions.
-
-**The overlay window** is an ARGB X11 client (the X equivalent of Windows' layered windows), shown through XWayland on Wayland – compositors stack it above native Wayland windows, so this works everywhere. A **compositing** desktop (KDE, GNOME, anything modern) is required for the transparency; bare WMs need a compositor like `picom`.
-
-**Finding the game window:**
-
-- **X11 sessions** – work out of the box.
-- **Wayland sessions** – the game window is tracked through the compositor, automatically:
-  - **KDE Plasma (KWin)** – via the KWin scripting API (needs `gdbus` and `journalctl`, present on any KDE system).
-  - **Hyprland / Sway** – via their IPC sockets.
-  - **Other compositors (e.g. GNOME)** – no window-tracking interface exists; start PCSX2 as an X11 client instead and everything works as on X11:
-
-    ```bash
-    QT_QPA_PLATFORM=xcb pcsx2-qt
-    ```
-
-**PINE on Linux** is a Unix socket at `$XDG_RUNTIME_DIR/pcsx2.sock` (flatpak PCSX2: `$XDG_RUNTIME_DIR/app/net.pcsx2.PCSX2/pcsx2.sock`) – both are found automatically, and the overlay enables the PINE server in PCSX2's settings for you.
-
-**Memory reading.** The fast scan path reads PCSX2's memory directly with `process_vm_readv`. Most distros restrict this by default (`kernel.yama.ptrace_scope = 1`); allow it with:
-
-```bash
-sudo sysctl kernel.yama.ptrace_scope=0    # or persist it in /etc/sysctl.d/
-```
-
-If it stays restricted the overlay automatically falls back to PINE‑only reads – everything still works, enemies are just discovered a little more slowly after spawning. The **Flatpak build always uses the PINE‑only fallback** (a sandbox can't read other processes' memory directly).

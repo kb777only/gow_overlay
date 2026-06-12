@@ -15,3 +15,7 @@ app/settings.json
 # third-party tools (not part of this repo)
 Cheat Engine/
 cheat_table_UPC/
+
+# user-generated logs (from-source runs)
+app/gow_overlay.log
+app/gow_overlay.prev.log

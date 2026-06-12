@@ -64,6 +64,7 @@ def _terminal_candidates():
 
 
 def _spawn(extra, show_console):
+    """Start the overlay/settings child process; returns its Popen handle."""
     env = os.environ.copy()
     # A PyInstaller one-file child must NOT inherit the parent's _MEIPASS2: if it
     # does, it reuses the launcher's temp-extract dir instead of making its own and
@@ -74,18 +75,16 @@ def _spawn(extra, show_console):
     cmd = _self_cmd() + extra
     if sys.platform == "win32":
         flags = CREATE_NEW_CONSOLE if show_console else CREATE_NO_WINDOW
-        subprocess.Popen(cmd, creationflags=flags, cwd=HERE, close_fds=True, env=env)
-        return
+        return subprocess.Popen(cmd, creationflags=flags, cwd=HERE, close_fds=True, env=env)
     if show_console:
         import shutil
         for name, prefix in _terminal_candidates():
             if shutil.which(name):
-                subprocess.Popen([name] + prefix + cmd, cwd=HERE, env=env,
-                                 start_new_session=True)
-                return
+                return subprocess.Popen([name] + prefix + cmd, cwd=HERE, env=env,
+                                        start_new_session=True)
         # no terminal emulator found - run anyway, just without visible logs
-    subprocess.Popen(cmd, cwd=HERE, env=env, start_new_session=True,
-                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    return subprocess.Popen(cmd, cwd=HERE, env=env, start_new_session=True,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 def _hide_console():
@@ -113,11 +112,12 @@ class LauncherApp:
         self.tk = tk
         self.root = root
         root.title("God of War — Damage Overlay")
-        root.geometry("400x430")
+        root.geometry("420x470")
         root.resizable(False, False)
         self._status_text = "Looking for the game…"
         self._detected = False
         self._poll = True
+        self._child = None        # the running overlay process, if any
 
         wrap = ttk.Frame(root, padding=18)
         wrap.pack(fill="both", expand=True)
@@ -147,9 +147,13 @@ class LauncherApp:
             ttk.Label(row, text="– " + hint, foreground="#888").pack(side="left", padx=4)
 
         btns = ttk.Frame(wrap); btns.pack(fill="x", pady=(18, 4))
-        start = ttk.Button(btns, text="▶  Start Overlay", command=self._start)
-        start.pack(side="left", ipadx=8, ipady=2)
+        self.start_btn = ttk.Button(btns, text="▶  Start Overlay", command=self._start)
+        self.start_btn.pack(side="left", ipadx=8, ipady=2)
         ttk.Button(btns, text="⚙  Settings", command=self._settings).pack(side="left", padx=8)
+
+        dbg = ttk.Frame(wrap); dbg.pack(fill="x", pady=(4, 0))
+        ttk.Button(dbg, text="📋  Copy last log", command=self._copy_log).pack(side="left")
+        ttk.Button(dbg, text="🐞  Report an issue", command=self._report).pack(side="left", padx=8)
 
         ttk.Label(wrap, text="Tip: you can launch this before the game — it will wait.",
                   foreground="#999", font=("Segoe UI", 8)).pack(anchor="w", side="bottom")
@@ -165,6 +169,12 @@ class LauncherApp:
         except Exception:
             pine = pcsx2cfg = None
         while self._poll:
+            if self._child is not None:
+                # the overlay owns the (single-connection) PINE socket while it
+                # runs - don't poke it, just report that it's going
+                self._status_text, self._detected = "Overlay running", True
+                time.sleep(1.5)
+                continue
             text, ok = "Waiting for PCSX2 to start…", False
             hwnd = winutil.find_pcsx2_window()
             title = None
@@ -195,26 +205,50 @@ class LauncherApp:
     def _refresh(self):
         self.status.set(self._status_text)
         self.dot.config(foreground="#33aa44" if self._detected else "#e88000")
+        if self._child is not None and self._child.poll() is not None:
+            self._child = None                      # overlay exited (or crashed)
+            self.start_btn.config(state="normal", text="▶  Start Overlay")
         if self._poll:
             self.root.after(400, self._refresh)
 
     def _start(self):
         from tkinter import messagebox
         mode = self.mode.get()
-        self._poll = False
+        self._child = _spawn(["--run", mode], show_console=(mode != "silent"))
+        # stay open: live-tweak via Settings while playing; Start re-arms when
+        # the overlay exits
+        self.start_btn.config(state="disabled", text="Overlay running…")
         if mode == "silent":
-            _spawn(["--run", "silent"], show_console=False)
             messagebox.showinfo("Damage overlay",
                                 "The overlay is now running in the background.\n\n"
                                 "Damage numbers will appear over enemies in-game.\n"
-                                "Close it any time from Task Manager / your system\n"
-                                "monitor (python or the app executable).")
-        else:
-            _spawn(["--run", mode], show_console=True)
-        self.root.destroy()
+                                "Keep this window open to tweak Settings live,\n"
+                                "or close it - the overlay keeps running.")
 
     def _settings(self):
         _spawn(["--setup"], show_console=False)
+
+    def _copy_log(self):
+        from tkinter import messagebox
+        import applog
+        path, text = applog.read_latest()
+        if not text:
+            messagebox.showinfo("No log yet",
+                                "No overlay log found — start the overlay once first.",
+                                parent=self.root)
+            return
+        self.root.clipboard_clear()
+        self.root.clipboard_append(text)
+        messagebox.showinfo("Log copied",
+                            f"Copied {os.path.basename(path)} to the clipboard "
+                            f"({len(text.splitlines())} lines).\n\n"
+                            "Paste it into a GitHub issue:\n"
+                            "github.com/kb777only/gow_overlay/issues",
+                            parent=self.root)
+
+    def _report(self):
+        import webbrowser
+        webbrowser.open("https://github.com/kb777only/gow_overlay/issues/new")
 
 
 def main():

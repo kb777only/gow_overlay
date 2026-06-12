@@ -8,7 +8,7 @@ import subprocess
 import sys
 
 import tkinter as tk
-from tkinter import ttk, colorchooser
+from tkinter import ttk, colorchooser, filedialog, messagebox
 
 from settings import S
 
@@ -136,6 +136,12 @@ class SetupApp:
         self.slider(t, "Creature min HP", ("tracking", "creature_min_hp"), 3, 50, True)
         self.slider(t, "Creature max HP", ("tracking", "creature_max_hp"), 30, 5000, True)
 
+        # preset sharing row
+        pr = ttk.Frame(self.root); pr.pack(fill="x", padx=8, pady=(0, 2))
+        ttk.Label(pr, text="Presets:", foreground="#666").pack(side="left")
+        ttk.Button(pr, text="Import…", command=self._import).pack(side="left", padx=(6, 0))
+        ttk.Button(pr, text="Export…", command=self._export).pack(side="left", padx=6)
+
         # bottom bar
         bar = ttk.Frame(self.root); bar.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Label(bar, text="changes apply live to a running overlay",
@@ -146,6 +152,38 @@ class SetupApp:
     def _reset(self):
         S.reset()
         self._build()
+
+    _FILETYPES = [("GoW overlay preset", "*.json"), ("All files", "*.*")]
+
+    def _export(self):
+        path = filedialog.asksaveasfilename(
+            parent=self.root, title="Export settings preset",
+            defaultextension=".json", initialfile="gow-overlay-preset.json",
+            filetypes=self._FILETYPES)
+        if not path:
+            return
+        try:
+            S.export_to(path)
+        except OSError as e:
+            messagebox.showerror("Export failed", str(e), parent=self.root)
+            return
+        messagebox.showinfo("Preset exported",
+                            f"Saved to:\n{path}\n\nShare the file - others load it "
+                            "with Import.", parent=self.root)
+
+    def _import(self):
+        path = filedialog.askopenfilename(
+            parent=self.root, title="Import settings preset",
+            filetypes=self._FILETYPES)
+        if not path:
+            return
+        try:
+            S.import_from(path)
+        except Exception as e:
+            messagebox.showerror("Import failed",
+                                 f"Could not load preset:\n{e}", parent=self.root)
+            return
+        self._build()      # show the imported values (a running overlay live-reloads)
 
     def _open_json(self):
         if sys.platform == "win32":
