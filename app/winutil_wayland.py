@@ -58,10 +58,22 @@ def _host_run(cmd: List[str], **kw) -> subprocess.CompletedProcess:
     return subprocess.run(cmd, **kw)
 
 
-def _matches(title: str, app: str) -> bool:
-    title = (title or "").lower()
+def _classify(title: str, app: str):
+    """True when PCSX2 owns the window, else None. Compositors always report
+    the real app class/app-id ("pcsx2-qt", flatpak "net.pcsx2.PCSX2"), so
+    titles are deliberately NOT consulted: a title can be faked by anything -
+    the overlay's own launcher, a browser tab about the game - and that made
+    the overlay attach to the wrong window."""
     app = (app or "").lower()
-    return "pcsx2" in app or "pcsx2" in title or "god of war" in title
+    return True if "pcsx2" in app and "gow" not in app else None
+
+
+def _pick(cands):
+    """cands: [(class_hit, area, rect)] -> rect of the best one, or None.
+    PCSX2-owned windows always beat title matches; then largest area."""
+    if not cands:
+        return None
+    return max(cands, key=lambda c: (c[0], c[1]))[2]
 
 
 # --- KWin (KDE Plasma) ---------------------------------------------------------
@@ -70,10 +82,10 @@ const out = [];
 const list = workspace.windowList ? workspace.windowList() : workspace.clientList();
 for (const w of list) {
     const t = String(w.caption || ""), c = String(w.resourceClass || "");
-    const lt = t.toLowerCase(), lc = c.toLowerCase();
-    if (lc.indexOf("pcsx2") === -1 && lt.indexOf("pcsx2") === -1 &&
-        lt.indexOf("god of war") === -1)
-        continue;          // only game windows: nothing else reaches the journal
+    const lc = c.toLowerCase();
+    if (lc.indexOf("pcsx2") === -1)
+        continue;          // only PCSX2's own windows: titles can be faked
+                           // (and nothing else reaches the journal)
     const g = w.clientGeometry || w.frameGeometry;
     out.push({t: t, c: c, r: [g.x, g.y, g.width, g.height],
               min: !!w.minimized, fs: !!w.fullScreen});
@@ -147,13 +159,14 @@ class KWinAdapter:
                 pass
 
     def find(self) -> Optional[Tuple[int, int, int, int]]:
-        wins = self.query() or []
-        cands = [w for w in wins if _matches(w.get("t"), w.get("c")) and not w.get("min")]
-        if not cands:
-            return None
-        # the display window, not a small dialog: largest client area wins
-        best = max(cands, key=lambda w: w["r"][2] * w["r"][3])
-        return tuple(int(v) for v in best["r"])
+        cands = []
+        for w in self.query() or []:
+            hit = _classify(w.get("t"), w.get("c"))
+            if hit is None or w.get("min"):
+                continue
+            r = tuple(int(v) for v in w["r"])
+            cands.append((hit, r[2] * r[3], r))
+        return _pick(cands)
 
 
 # --- Hyprland --------------------------------------------------------------------
@@ -191,13 +204,15 @@ class HyprlandAdapter:
             clients = json.loads(raw.decode("utf-8", "replace"))
         except (OSError, ValueError):
             return None
-        cands = [c for c in clients
-                 if _matches(c.get("title"), c.get("class")) and c.get("mapped", True)]
-        if not cands:
-            return None
-        best = max(cands, key=lambda c: c["size"][0] * c["size"][1])
-        return (int(best["at"][0]), int(best["at"][1]),
-                int(best["size"][0]), int(best["size"][1]))
+        cands = []
+        for c in clients:
+            hit = _classify(c.get("title"), c.get("class"))
+            if hit is None or not c.get("mapped", True):
+                continue
+            r = (int(c["at"][0]), int(c["at"][1]),
+                 int(c["size"][0]), int(c["size"][1]))
+            cands.append((hit, r[2] * r[3], r))
+        return _pick(cands)
 
 
 # --- Sway (i3 IPC) -----------------------------------------------------------------
@@ -233,17 +248,17 @@ class SwayAdapter:
 
         def walk(n):
             app = n.get("app_id") or (n.get("window_properties") or {}).get("class", "")
-            if _matches(n.get("name"), app) and n.get("visible", True) and n.get("rect"):
+            hit = _classify(n.get("name"), app)
+            if hit is not None and n.get("visible", True) and n.get("rect"):
                 r, wr = n["rect"], n.get("window_rect") or {}
-                found.append((r["x"] + wr.get("x", 0), r["y"] + wr.get("y", 0),
-                              wr.get("width") or r["width"], wr.get("height") or r["height"]))
+                rect = (r["x"] + wr.get("x", 0), r["y"] + wr.get("y", 0),
+                        wr.get("width") or r["width"], wr.get("height") or r["height"])
+                found.append((hit, rect[2] * rect[3], rect))
             for c in (n.get("nodes") or []) + (n.get("floating_nodes") or []):
                 walk(c)
 
         walk(tree)
-        if not found:
-            return None
-        return max(found, key=lambda r: r[2] * r[3])
+        return _pick(found)
 
 
 _ADAPTERS = (HyprlandAdapter, SwayAdapter, KWinAdapter)

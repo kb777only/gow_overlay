@@ -113,7 +113,9 @@ class LauncherApp:
         from tkinter import ttk
         self.tk = tk
         self.root = root
-        root.title("God of War — Damage Overlay")
+        # NOTE: the title must NOT contain "God of War" or "PCSX2" - the window
+        # matchers look for those, and this launcher stays open while they run
+        root.title("GoW Damage Overlay — Launcher")
         root.geometry("420x470")
         root.resizable(False, False)
         self._status_text = "Looking for the game…"
@@ -290,7 +292,8 @@ def main():
     procname.set_name(procname.LAUNCHER)
     import tkinter as tk
     import respath
-    root = tk.Tk()
+    # className -> WM_CLASS "gow_overlay*", which every window matcher excludes
+    root = tk.Tk(className="gow_overlay-launcher")
     respath.set_tk_icon(root)
     LauncherApp(root)
     root.mainloop()

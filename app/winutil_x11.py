@@ -190,11 +190,25 @@ def _is_viewable(dpy, win) -> bool:
     return bool(_x11.XGetWindowAttributes(dpy, win, ctypes.byref(wa))) and wa.map_state == IsViewable
 
 
+def _get_class(hwnd) -> str:
+    """The window's WM_CLASS ("instance class"), lowercased, or ""."""
+    dpy = _display()
+    wm_class = _x11.XInternAtom(dpy, b"WM_CLASS", True)
+    if not wm_class:
+        return ""
+    raw = _get_prop(dpy, hwnd, wm_class)
+    if isinstance(raw, bytes):
+        return raw.replace(b"\0", b" ").decode("latin-1", "replace").strip().lower()
+    return ""
+
+
 def find_pcsx2_window() -> Optional[int]:
     """Return the X window id of the PCSX2 game/display window, or None.
 
-    Prefers a window whose title contains the running game name; falls back to
-    any visible 'PCSX2'/game window (same heuristics as the Win32 version)."""
+    Windows whose WM_CLASS belongs to PCSX2 win outright; title matches
+    ("God of War"/"PCSX2") are only a fallback, so a lookalike title - the
+    overlay's own launcher, a browser tab - can never shadow the game. Our own
+    windows (WM_CLASS gow_overlay*) are excluded entirely."""
     dpy = _display()
     root = _x11.XDefaultRootWindow(dpy)
     wins: List[int] = []
@@ -213,18 +227,24 @@ def find_pcsx2_window() -> Optional[int]:
     for w in wins:
         if not _is_viewable(dpy, w):
             continue
-        title = _get_title(w)
-        if not title:
-            continue
-        low = title.lower()
-        if ("god of war" in low) or ("pcsx2" in low):
-            _, _, cw, ch = client_rect_on_screen(w)
-            found.append((w, title, cw, ch))
+        cls = _get_class(w)
+        if "gow_overlay" in cls or "gow-damage-overlay" in cls:
+            continue                       # never our own launcher/settings/overlay
+        low = _get_title(w).lower()
+        if "damage overlay" in low:
+            continue                       # ...nor an older overlay's windows
+        class_hit = "pcsx2" in cls
+        if not class_hit:
+            if not (("god of war" in low) or ("pcsx2" in low)):
+                continue
+        _, _, cw, ch = client_rect_on_screen(w)
+        found.append((class_hit, cw * ch, int(w)))
     if not found:
         return None
-    # pick the one with the largest client area (the display), not a tiny dialog
-    found.sort(key=lambda t: t[2] * t[3], reverse=True)
-    return int(found[0][0])
+    # PCSX2's own windows first; among those the largest client area (the
+    # display, not a tiny dialog)
+    found.sort(reverse=True)
+    return found[0][2]
 
 
 def client_rect_on_screen(hwnd) -> Tuple[int, int, int, int]:

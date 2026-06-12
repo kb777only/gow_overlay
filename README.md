@@ -1,5 +1,5 @@
-![Icon Name](assets/gow_overlay.ico)
 # God of War – Damage Overlay for PCSX2
+![Icon Name](assets/gow_overlay.ico)
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
@@ -12,14 +12,11 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
   
 ![Demo](assets/demo.gif)
 
-## 🚀 What's New in v0.6.9
+## 🚀 What's New in v0.6.95
 
-- 🎯 **Fixed misplaced damage numbers** – numbers could occasionally pop up in the wrong spot, or even outside the game view. Cause: during loads, menus and camera cuts the game's camera-matrix memory briefly holds garbage (and reads can tear mid-update), which projected hits anywhere. The overlay now validates every camera matrix before using it (keeping the last good one) and ignores implausible position updates, so numbers stay glued to enemies.
-- ⏹ **Stop button in the launcher** – ends the running overlay with one click, including a **Silent**-mode overlay or one started by an earlier session. No more hunting through the task manager.
-- 🏷️ **Named processes** – the overlay and launcher now show up as `gow_overlay` and `gow_overlay-launcher` in process lists (Linux; the kernel shows the first 15 chars), so `pkill -x gow_overlay` works too. On Windows they keep the exe name, but the Stop button finds them regardless.
-- 🖼️ **App icon everywhere** – the launcher and Settings windows, the overlay window, and the Windows `.exe` itself now carry the GoW overlay icon.
+- 🪟 **Fixed the overlay attaching to the wrong window** – window matching was title-based, so the launcher itself (titled "God of War — Damage Overlay" and, since v0.6.5, always open) could be mistaken for the game and collect the damage numbers. Matching is now based on which **process owns the window** (PCSX2's window class / app-id / exe), titles are only a last resort (and ignored entirely on Wayland), and the overlay's own windows – including older versions' – are always excluded. The launcher is now titled "GoW Damage Overlay — Launcher".
 
-Recent releases: **v0.6.5** added preset sharing, crash logs + one-click bug reports, and a launcher that stays open for live tweaking; **v0.6.0** cut the overlay's overhead to near zero ([Performance](#-performance)); **v0.5.0** added full Wayland support, PINE auto-setup, and the AppImage/Flatpak packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
+Recent releases: **v0.6.9** fixed misplaced damage numbers and added the launcher's ⏹ Stop button, named processes (`gow_overlay` / `gow_overlay-launcher`), and the app icon everywhere; **v0.6.5** added preset sharing, crash logs + one-click bug reports, and a launcher that stays open for live tweaking; **v0.6.0** cut the overlay's overhead to near zero ([Performance](#-performance)); **v0.5.0** added full Wayland support, PINE auto-setup, and the AppImage/Flatpak packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
 
 ## 🗺️ Roadmap
 
@@ -29,6 +26,8 @@ The road to **v1.0.0** is all about spectacle and reach:
 - 🌈 **Animated, colour-shifting numbers** – ramps that move and breathe with the damage.
 - 🕹️ **Full, verified Steam Deck support** – tested and tuned on the Deck itself, out of the box.
 - ✨ …and more cool stuff not yet planned – ideas welcome in [issues](https://github.com/kb777only/gow_overlay/issues)!
+
+Meanwhile, **performance and stability updates** will keep being released as we go, through minor version updates.
 
 ## ✨ Features
 

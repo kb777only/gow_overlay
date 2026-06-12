@@ -197,7 +197,7 @@ class SetupApp:
 
 def main():
     import respath
-    root = tk.Tk()
+    root = tk.Tk(className="gow_overlay-setup")
     respath.set_tk_icon(root)
     SetupApp(root)
     root.mainloop()

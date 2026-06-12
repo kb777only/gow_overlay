@@ -9,6 +9,8 @@ Import via `winutil`, which dispatches per platform (winutil_x11 on Linux).
 from __future__ import annotations
 
 import ctypes
+import os
+import sys
 import time
 from ctypes import wintypes
 from typing import Optional, Tuple
@@ -47,34 +49,67 @@ def _get_title(hwnd) -> str:
     return buf.value
 
 
+PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+
+
+def _owner_exe(hwnd) -> str:
+    """Basename of the exe owning `hwnd` (lowercase), '' if unknown, or
+    '__self__' for windows of this very process (launcher/settings/console)."""
+    pid = wintypes.DWORD()
+    GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if not pid.value:
+        return ""
+    if pid.value == os.getpid():
+        return "__self__"
+    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    if not h:
+        return ""
+    try:
+        buf = ctypes.create_unicode_buffer(260)
+        size = wintypes.DWORD(260)
+        if kernel32.QueryFullProcessImageNameW(h, 0, buf, ctypes.byref(size)):
+            return buf.value.rsplit("\\", 1)[-1].lower()
+        return ""
+    finally:
+        kernel32.CloseHandle(h)
+
+
 def find_pcsx2_window() -> Optional[int]:
     """Return the HWND of the PCSX2 game/display window, or None.
 
-    Prefers a window whose title contains the running game name; falls back to
-    any visible 'PCSX2'/game window. PCSX2 renders into the main window's
-    client area (no separate render window unless configured)."""
+    Windows owned by a pcsx2 process win outright; title matches ("God of
+    War"/"PCSX2") are only a fallback, so a lookalike title - the overlay's own
+    launcher, a browser tab - can never shadow the game. Windows of this
+    process and of other overlay instances are excluded entirely."""
+    self_exe = os.path.basename(sys.executable).lower()
     found = []
 
     def cb(hwnd, _):
         if not IsWindowVisible(hwnd):
             return True
-        title = _get_title(hwnd)
-        if not title:
-            return True
-        low = title.lower()
-        # PCSX2 main window title is the game name while running, e.g. "God of War".
-        if ("god of war" in low) or ("pcsx2" in low):
-            r = wintypes.RECT()
-            GetClientRect(hwnd, ctypes.byref(r))
-            found.append((hwnd, title, r.right - r.left, r.bottom - r.top))
+        exe = _owner_exe(hwnd)
+        if exe == "__self__" or (exe and exe == self_exe and not exe.startswith("pcsx2")):
+            return True                 # our own windows / sibling overlay processes
+        low = _get_title(hwnd).lower()
+        if "damage overlay" in low:
+            return True                 # an older overlay's launcher/settings
+        class_hit = exe.startswith("pcsx2")
+        if not class_hit:
+            # PCSX2's main window title is the game name while running.
+            if not (("god of war" in low) or ("pcsx2" in low)):
+                return True
+        r = wintypes.RECT()
+        GetClientRect(hwnd, ctypes.byref(r))
+        found.append((class_hit, (r.right - r.left) * (r.bottom - r.top), hwnd))
         return True
 
     EnumWindows(EnumWindowsProc(cb), 0)
     if not found:
         return None
-    # pick the one with the largest client area (the display), not a tiny dialog
-    found.sort(key=lambda t: t[2] * t[3], reverse=True)
-    return found[0][0]
+    # pcsx2-owned windows first; among those the largest client area (the
+    # display, not a tiny dialog)
+    found.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    return found[0][2]
 
 
 def client_rect_on_screen(hwnd) -> Tuple[int, int, int, int]:
