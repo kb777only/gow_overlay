@@ -15,6 +15,8 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 ## 🚀 What's New in v0.6.9
 
 - 🎯 **Fixed misplaced damage numbers** – numbers could occasionally pop up in the wrong spot, or even outside the game view. Cause: during loads, menus and camera cuts the game's camera-matrix memory briefly holds garbage (and reads can tear mid-update), which projected hits anywhere. The overlay now validates every camera matrix before using it (keeping the last good one) and ignores implausible position updates, so numbers stay glued to enemies.
+- ⏹ **Stop button in the launcher** – ends the running overlay with one click, including a **Silent**-mode overlay or one started by an earlier session. No more hunting through the task manager.
+- 🏷️ **Named processes** – the overlay and launcher now show up as `gow_overlay` and `gow_overlay-launcher` in process lists (Linux; the kernel shows the first 15 chars), so `pkill -x gow_overlay` works too. On Windows they keep the exe name, but the Stop button finds them regardless.
 - 🖼️ **App icon everywhere** – the launcher and Settings windows, the overlay window, and the Windows `.exe` itself now carry the GoW overlay icon.
 
 Recent releases: **v0.6.5** added preset sharing, crash logs + one-click bug reports, and a launcher that stays open for live tweaking; **v0.6.0** cut the overlay's overhead to near zero ([Performance](#-performance)); **v0.5.0** added full Wayland support, PINE auto-setup, and the AppImage/Flatpak packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
@@ -51,7 +53,7 @@ Then:
 2. Pick a mode – **Normal** / **Verbose** / **Damage log** (with a log terminal) or **Silent** (overlay only) – and click **Start Overlay**.
 3. Play. Damage numbers pop over enemies as you hurt them.
 
-The launcher stays open: click **Settings** any time to tune colours, sizes and effects **live while playing**, or to **Import/Export** a preset.
+The launcher stays open: click **Settings** any time to tune colours, sizes and effects **live while playing**, or to **Import/Export** a preset. **⏹ Stop** ends the overlay (even a background/Silent one) whenever you're done.
 
 ## ⚡ Performance
 

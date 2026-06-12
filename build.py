@@ -32,7 +32,7 @@ with open(os.path.join(APP, "appinfo.json")) as f:
 
 MODULES = ["gow_overlay", "overlay", "liveproj", "enemy", "memscan", "pine",
            "winutil", "winshot", "emu", "config", "settings", "setup_gui",
-           "pcsx2cfg", "applog", "respath"]
+           "pcsx2cfg", "applog", "respath", "procname"]
 if sys.platform == "win32":
     MODULES += ["winutil_win32", "overlay_win32"]
 else:

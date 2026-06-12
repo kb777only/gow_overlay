@@ -1,4 +1,4 @@
-# v0.6.9 — Misplaced-Number Fix & App Icon
+# v0.6.9 — Misplaced-Number Fix, Stop Button & App Icon
 
 A focused release for **Windows and Linux**.
 
@@ -10,6 +10,13 @@ Numbers could occasionally spawn in the wrong spot — sometimes far from the en
 - **Unbounded number tracking.** A live number follows its enemy every frame; a single bad projection (torn position read, mid-frame camera cut) could yank it across or off the screen. Position updates that land implausibly far outside the view are now ignored — the number simply holds its last good spot instead of flying away.
 
 Validated against live gameplay: real camera matrices pass the filter exactly (rotation row norms are 1.0 in-game), and synthetic garbage (zeros, random data, NaNs, torn rows) is rejected while retaining the previous good matrix.
+
+## ⏹ Stop button & named processes
+
+Stopping a **Silent**-mode overlay used to mean digging through the task manager. Now:
+
+- The launcher has a **⏹ Stop** button that terminates the running overlay — the one it started, *and* any overlay left running from an earlier session (it finds them by process). The Start button re-arms automatically, and the launcher detects an already-running overlay on startup.
+- Processes are properly named: the overlay runs as **`gow_overlay`** and the launcher as **`gow_overlay-launcher`** (Linux shows the kernel-limited first 15 characters, `gow_overlay-lau`). `pkill -x gow_overlay` now works from a terminal too. On Windows, processes keep the exe name — but the Stop button finds and ends them all the same.
 
 ## 🖼️ App icon
 

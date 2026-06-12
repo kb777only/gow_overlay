@@ -29,6 +29,8 @@ VERBOSITY_FLAG = {"normal": [], "verbose": ["--verbose"], "dmg": ["--dmg"], "sil
 def _dispatch():
     args = sys.argv[1:]
     if "--setup" in args:
+        import procname
+        procname.set_name(procname.SETUP)
         import setup_gui
         setup_gui.main()
         return True
@@ -117,7 +119,8 @@ class LauncherApp:
         self._status_text = "Looking for the game…"
         self._detected = False
         self._poll = True
-        self._child = None        # the running overlay process, if any
+        self._child = None        # overlay process started by THIS launcher
+        self._ext = False         # an overlay from elsewhere is running (Linux)
 
         wrap = ttk.Frame(root, padding=18)
         wrap.pack(fill="both", expand=True)
@@ -149,7 +152,9 @@ class LauncherApp:
         btns = ttk.Frame(wrap); btns.pack(fill="x", pady=(18, 4))
         self.start_btn = ttk.Button(btns, text="▶  Start Overlay", command=self._start)
         self.start_btn.pack(side="left", ipadx=8, ipady=2)
-        ttk.Button(btns, text="⚙  Settings", command=self._settings).pack(side="left", padx=8)
+        self.stop_btn = ttk.Button(btns, text="⏹  Stop", command=self._stop)
+        self.stop_btn.pack(side="left", padx=6)
+        ttk.Button(btns, text="⚙  Settings", command=self._settings).pack(side="left", padx=2)
 
         dbg = ttk.Frame(wrap); dbg.pack(fill="x", pady=(4, 0))
         ttk.Button(dbg, text="📋  Copy last log", command=self._copy_log).pack(side="left")
@@ -168,8 +173,11 @@ class LauncherApp:
             import pcsx2cfg
         except Exception:
             pine = pcsx2cfg = None
+        import procname
         while self._poll:
-            if self._child is not None:
+            # an overlay may also have been started outside this launcher
+            self._ext = sys.platform != "win32" and bool(procname.find_overlays())
+            if self._child is not None or self._ext:
                 # the overlay owns the (single-connection) PINE socket while it
                 # runs - don't poke it, just report that it's going
                 self._status_text, self._detected = "Overlay running", True
@@ -207,6 +215,10 @@ class LauncherApp:
         self.dot.config(foreground="#33aa44" if self._detected else "#e88000")
         if self._child is not None and self._child.poll() is not None:
             self._child = None                      # overlay exited (or crashed)
+        running = self._child is not None or self._ext
+        if running and str(self.start_btn["state"]) != "disabled":
+            self.start_btn.config(state="disabled", text="Overlay running…")
+        elif not running and str(self.start_btn["state"]) == "disabled":
             self.start_btn.config(state="normal", text="▶  Start Overlay")
         if self._poll:
             self.root.after(400, self._refresh)
@@ -224,6 +236,24 @@ class LauncherApp:
                                 "Damage numbers will appear over enemies in-game.\n"
                                 "Keep this window open to tweak Settings live,\n"
                                 "or close it - the overlay keeps running.")
+
+    def _stop(self):
+        """Stop the overlay - the one this launcher started AND any running in
+        the background (e.g. a silent overlay from an earlier session), so
+        nobody has to hunt processes in a task manager."""
+        from tkinter import messagebox
+        import procname
+        found = 0
+        if self._child is not None and self._child.poll() is None:
+            try:
+                self._child.terminate()
+                found += 1
+            except Exception:
+                pass
+        found += procname.stop_overlays()
+        if not found:
+            messagebox.showinfo("Stop overlay", "No running overlay found.",
+                                parent=self.root)
 
     def _settings(self):
         _spawn(["--setup"], show_console=False)
@@ -256,6 +286,8 @@ def main():
         return
     if getattr(sys, "frozen", False):
         _hide_console()
+    import procname
+    procname.set_name(procname.LAUNCHER)
     import tkinter as tk
     import respath
     root = tk.Tk()
