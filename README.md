@@ -31,7 +31,7 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 ## Features
 
 - 🎯 **Attached to enemies** – numbers follow moving targets smoothly.  
-- 📷 **World‑Space Projection Engine – GoW projects objects individually (a PS2 VU quirk), it lacks a standard global camera matrix. This tool uses a custom projection model calibrated via multi‑frame triangulation (matching actor world-coords to screen pixels) to perfectly pin numbers in 3D space through any pan, rotate, or zoom.  
+- 📷 **World-Space Projection Engine** – GoW projects objects individually (a PS2 VU quirk), it lacks a standard global camera matrix. This uses a custom projection model calibrated through multi‑frame triangulation (matching actor world-coords to screen pixels) to pin numbers in 3D space through any pan, rotate, or zoom.  
 - 💥 **Epic hit feedback** – screenshake, warm edge flash, expanding shockwave ring, and a white‑hot pop for big damage.  
 - 🎨 **Fully customisable** – colours, size, lifetime, tracking behaviour, and all visual effects are tweakable **live** via a GUI settings window (or by editing `settings.json`).  
 - 🐎 **Low performance impact** – actor scanning is vectorised (numpy) and runs on a background thread. The overlay draws with per‑pixel alpha (`UpdateLayeredWindow` on Windows, an ARGB X11 window on Linux), with ≤1% CPU on a modern system.  
