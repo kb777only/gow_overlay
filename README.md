@@ -31,7 +31,7 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 1. **Download** the latest `gow_overlay.zip` from [Releases](https://github.com/kb777only/gow_overlay/releases).  
 2. **Extract** anywhere.  
 3. **Launch** `launcher.exe`.  
-4. **Start PCSX2** and load *God of War* (get in‑game, past the main menu).  
+4. **That's it** It automatically detects GoW and gets to work, or waits for you to start the game.  
 5. In the launcher window, choose:  
    - **Normal** – overlay + terminal with basic logs.  
    - **Verbose** – overlay + terminal with all debug data.  
@@ -42,7 +42,7 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
 Damage numbers will now appear over enemies whenever you hurt them.  
 To adjust colours, size, or effect strength, click **Settings** in the launcher while the overlay is running – changes apply instantly.
 
-> 💡 The overlay waits for the game to launch. You can start it before PCSX2 – it will automatically connect once the game is running.
+> 💡 The overlay waits for the game to launch. You can start it before PCSX2 – it will automatically connect once the game is running, or automatically detect it if the game is already running (Can be started/stopped freely during active gameplay).
 
 ## 🔧 Running from Source (Python)
 
