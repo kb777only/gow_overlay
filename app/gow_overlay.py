@@ -67,6 +67,7 @@ class Tracker(threading.Thread):
         self.actors = {}            # base -> {"max", "last", "miss"}
         self.lock = threading.Lock()
         self._run = True
+        self._fails = 0
 
     def run(self):
         while self._run:
@@ -75,7 +76,13 @@ class Tracker(threading.Thread):
             try:
                 found = enemy.scan(self.sc, creature_min=tk["creature_min_hp"],
                                    creature_max=tk["creature_max_hp"])
-            except Exception:
+                self._fails = 0
+            except Exception as e:
+                # a failed scan now and then is normal (e.g. game shutdown race);
+                # persistent failure means no enemies would ever be found - say so
+                self._fails += 1
+                if self._fails in (5, 100) and LEVEL >= NORMAL:
+                    print(f"warning: enemy scans keep failing ({e!r})", flush=True)
                 time.sleep(period); continue
             valid = {a["base"] for a in found}
             player_base = enemy.find_player(self.sc, valid)     # Kratos -> excluded
@@ -108,29 +115,65 @@ class Tracker(threading.Thread):
 
 def wait_for_game(poll=1.0):
     """Block until PCSX2 is running with a game loaded (PINE up + window present).
-    Returns (PineClient, pid, hwnd). Prints a waiting message once."""
+    Returns (PineClient, pid, hwnd). Prints a waiting message once, then precise
+    one-time hints for whatever is actually missing (PINE off, window untrackable),
+    and pre-enables PINE in PCSX2's config while PCSX2 isn't running yet.
+
+    pid may be None (e.g. sandboxed builds can't see host processes); the memory
+    reader then falls back to PINE-only reads, so it doesn't block readiness."""
+    import pcsx2cfg
     announced = False
-    no_window = 0
+    said = set()
+
+    def say(key, msg):
+        if key not in said:
+            said.add(key)
+            print(msg, flush=True)
+
+    misses = 0
     while True:
         pid = memscan.find_pcsx2_pid()
         hwnd = winutil.find_pcsx2_window()
-        if pid and hwnd:
-            try:
-                pc = pine.PineClient().connect()
-                if pc.title() and pc.game_id():
-                    return pc, pid, hwnd
-                pc.close()
-            except Exception:
-                pass
-        if pid and not hwnd and sys.platform != "win32":
-            no_window += 1
-            if no_window == 5:      # persistent, not a startup race -> likely Wayland
-                print("PCSX2 is running but its window is not visible to X11.\n"
-                      "If you are on Wayland, start PCSX2 as an X11 client so the overlay "
-                      "can track it:\n    QT_QPA_PLATFORM=xcb pcsx2-qt", flush=True)
+        pine_ok = False
+        pc = None
+        try:
+            pc = pine.PineClient(timeout=1.0).connect()
+            pine_ok = True
+            if hwnd and pc.title() and pc.game_id():
+                return pc, pid, hwnd
+        except Exception:
+            pass
+        if pc is not None:
+            pc.close()
+
         if not announced:
             print("Waiting for game to launch...", flush=True)
             announced = True
+
+        if not (pid or hwnd or pine_ok):
+            # PCSX2 isn't running: the safe moment to fix its config so the PINE
+            # server (the overlay's data channel) is on when it starts
+            fixed = pcsx2cfg.enable_pine()
+            if fixed:
+                say("pine_fixed", f"note: enabled PCSX2's PINE server in {fixed} "
+                                  "(the overlay needs it; PCSX2 had it off).")
+        else:
+            misses += 1
+            if misses >= 5:                 # persistent, not a startup race
+                if not pine_ok:
+                    _, enabled, _ = pcsx2cfg.pine_state()
+                    if enabled is False:
+                        say("pine_off", pcsx2cfg.PINE_HINT)
+                    else:
+                        say("pine_down", "PCSX2 found, but its PINE server is not "
+                                         "answering yet (it appears once the emulator "
+                                         "is fully started).")
+                elif not hwnd and sys.platform != "win32":
+                    say("no_window",
+                        "PCSX2 is running but its window cannot be located.\n"
+                        "On Wayland the overlay tracks it automatically on KDE, "
+                        "Hyprland and Sway; on other\ncompositors start PCSX2 as an "
+                        "X11 client:    QT_QPA_PLATFORM=xcb pcsx2-qt")
         time.sleep(poll)
 
 

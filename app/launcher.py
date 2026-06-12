@@ -161,20 +161,34 @@ class LauncherApp:
         import winutil
         try:
             import pine
+            import pcsx2cfg
         except Exception:
-            pine = None
+            pine = pcsx2cfg = None
         while self._poll:
             text, ok = "Waiting for PCSX2 to start…", False
-            if winutil.find_pcsx2_window():
+            hwnd = winutil.find_pcsx2_window()
+            title = None
+            if pine is not None:
+                try:
+                    pc = pine.PineClient(timeout=0.6).connect()
+                    title = pc.title(); pc.close()
+                except Exception:
+                    title = None
+            if title:
+                if hwnd:
+                    text, ok = f"{title} detected", True
+                else:
+                    text = f"{title} found — window not trackable yet"
+            elif title == "":
                 text = "Waiting for a game to load…"
-                if pine is not None:
-                    try:
-                        pc = pine.PineClient(timeout=0.6).connect()
-                        title = pc.title(); pc.close()
-                        if title:
-                            text, ok = f"{title} detected", True
-                    except Exception:
-                        pass
+            elif hwnd:
+                if pcsx2cfg and pcsx2cfg.pine_state()[1] is False:
+                    text = "PCSX2 found — turn on PINE (Settings > Advanced)"
+                else:
+                    text = "PCSX2 found — waiting for its PINE server…"
+            elif pcsx2cfg:
+                # PCSX2 closed: quietly make sure PINE will be on when it starts
+                pcsx2cfg.enable_pine()
             self._status_text, self._detected = text, ok
             time.sleep(1.5)
 

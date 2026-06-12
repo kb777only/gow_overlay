@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=GoW Damage Overlay
+Comment=Live damage numbers over God of War (PCSX2)
+Exec=gow-overlay
+Icon=io.github.kb777only.gow_overlay
+Categories=Game;Emulator;
+Terminal=false

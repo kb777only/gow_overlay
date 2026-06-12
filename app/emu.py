@@ -10,7 +10,8 @@ def _toggle():
     h = winutil.find_pcsx2_window()
     if not h:
         return False
-    winutil.focus_window(h)
+    if not winutil.focus_window(h):     # native Wayland window: keys can't reach it
+        return False
     time.sleep(0.25)
     winutil.key_down('space')
     time.sleep(0.06)

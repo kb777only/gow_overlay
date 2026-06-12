@@ -12,17 +12,18 @@ import sys
 import time
 
 import numpy as np
-import pine
 import memscan
 import enemy
 import liveproj
 from settings import S
 
 
-def classify(a, ppos, tk):
-    """How the current tracker treats this actor."""
-    if a["max"] >= tk["enemy_max_hp"]:
-        return "EXCLUDED(max>=%d)" % tk["enemy_max_hp"]
+def classify(a, player_base, ppos, tk):
+    """How the current tracker treats this actor (mirrors gow_overlay.Tracker)."""
+    if a["base"] == player_base:
+        return "PLAYER"
+    if a["cur"] <= 0.5:
+        return "EXCLUDED(dead)"
     if ppos and (abs(a["pos"][0] - ppos[0]) > tk["near_player_dist"]
                  or abs(a["pos"][2] - ppos[2]) > tk["near_player_dist"]):
         return "EXCLUDED(far)"
@@ -30,23 +31,20 @@ def classify(a, ppos, tk):
 
 
 def main():
-    pc = pine.PineClient().connect()
+    pc, rpm, sc = memscan.open_default(pause_for_locate=False)
     print("status", pc.status(), pc.title(), pc.game_id())
-    rpm = memscan.open_reader(memscan.find_pcsx2_pid(), pc)
-    rpm.ee_base = rpm.locate_ee_base(pc)
-    sc = memscan.Scanner(rpm)
     tk = S["tracking"]
 
     found = enemy.scan(sc, creature_min=tk["creature_min_hp"], creature_max=tk["creature_max_hp"])
-    players = [a for a in found if 90 <= a["max"] <= 160 and a["cur"] > 0.5]
-    ppos = min(players, key=lambda a: abs(a["max"] - 100))["pos"] if players else None
+    player_base = enemy.find_player(sc, {a["base"] for a in found})
+    ppos = next((a["pos"] for a in found if a["base"] == player_base), None)
 
     proj = liveproj.LiveProjection()
     proj.update(pc)
     cam = proj.cam
-    print(f"\ncamera world pos = {None if cam is None else tuple(round(c,0) for c in cam)}")
+    print(f"\ncamera world pos = {None if cam is None else tuple(round(float(c)) for c in cam)}")
     print(f"{len(found)} actors found  (current tracker would register "
-          f"{sum(1 for a in found if classify(a, ppos, tk) == 'enemy')})\n")
+          f"{sum(1 for a in found if classify(a, player_base, ppos, tk) == 'enemy')})\n")
 
     rows = []
     for a in found:
@@ -65,7 +63,7 @@ def main():
         ss = "   -  " if not s else f"({s[0]:5.0f},{s[1]:5.0f})"
         on = "Y" if (s and 0 <= s[0] <= 1124 and 0 <= s[1] <= 676) else "."
         print(f"0x{a['base']:08X} {a['cur']:5.0f}/{a['max']:<5.0f} "
-              f"({wx:6.0f},{wy:6.0f},{wz:6.0f}) {vs} {ss}  {on}  {classify(a, ppos, tk)}")
+              f"({wx:6.0f},{wy:6.0f},{wz:6.0f}) {vs} {ss}  {on}  {classify(a, player_base, ppos, tk)}")
 
     if "--move" in sys.argv:
         print("\n--move: walk Kratos now... re-scanning in 3s")

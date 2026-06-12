@@ -39,6 +39,7 @@ import os
 import socket
 import struct
 import sys
+import threading
 from typing import Iterable, List, Sequence, Tuple, Union
 
 # --- opcodes -----------------------------------------------------------------
@@ -84,14 +85,23 @@ class PineClient:
         self.timeout = timeout
         self.socket_path = socket_path
         self._sock: socket.socket | None = None
+        # PCSX2's PINE server handles a single connection, and several overlay
+        # threads (frame loop + enemy scanner) share this client. Serialize
+        # whole transactions or the threads consume each other's reply bytes.
+        self._lock = threading.Lock()
 
     def _default_socket_path(self) -> str:
         # matches pcsx2/PINE.cpp: $XDG_RUNTIME_DIR/pcsx2.sock (or /tmp), and a
-        # ".<slot>" suffix when a non-default slot is configured
+        # ".<slot>" suffix when a non-default slot is configured. A flatpak
+        # PCSX2 gets its own runtime subdir, so probe that too.
         base = os.environ.get("XDG_RUNTIME_DIR") or "/tmp"
         name = "pcsx2.sock"
         if self.port != 28011:
             name += f".{self.port}"
+        for d in (base, os.path.join(base, "app", "net.pcsx2.PCSX2"), "/tmp"):
+            p = os.path.join(d, name)
+            if os.path.exists(p):
+                return p
         return os.path.join(base, name)
 
     # -- connection ----------------------------------------------------------
@@ -134,22 +144,28 @@ class PineClient:
 
     def _transact(self, body: bytes) -> bytes:
         """Send one framed request `body` (the packed commands, WITHOUT the
-        length header) and return the reply payload (WITHOUT length+status)."""
-        if self._sock is None:
-            self.connect()
-        msg = struct.pack("<I", len(body) + 4) + body
-        assert self._sock is not None
-        self._sock.sendall(msg)
+        length header) and return the reply payload (WITHOUT length+status).
+        Thread-safe: one transaction at a time over the shared socket."""
+        with self._lock:
+            try:
+                if self._sock is None:
+                    self.connect()
+                msg = struct.pack("<I", len(body) + 4) + body
+                assert self._sock is not None
+                self._sock.sendall(msg)
 
-        header = self._recv_exact(4)
-        (total,) = struct.unpack("<I", header)
-        if total < 5:
-            raise PineError(f"bad reply length {total}")
-        rest = self._recv_exact(total - 4)
-        status = rest[0]
-        if status != IPC_OK:
-            raise PineError(f"PINE returned IPC_FAIL (0x{status:02X})")
-        return rest[1:]
+                header = self._recv_exact(4)
+                (total,) = struct.unpack("<I", header)
+                if total < 5:
+                    raise PineError(f"bad reply length {total}")
+                rest = self._recv_exact(total - 4)
+                status = rest[0]
+                if status != IPC_OK:
+                    raise PineError(f"PINE returned IPC_FAIL (0x{status:02X})")
+                return rest[1:]
+            except (OSError, PineError):
+                self.close()    # the stream may be desynced: reconnect next call
+                raise
 
     # -- batched reads (the workhorse) --------------------------------------
     def batch_read(self, reqs: Sequence[ReadReq]) -> List[Union[int, float]]:

@@ -1,0 +1,94 @@
+# Flatpak manifest for the GoW damage overlay. Build from the repo root with
+#   python build.py flatpak
+# (or directly:  flatpak run org.flatpak.Builder --user --force-clean \
+#                --install-deps-from=flathub build packaging/flatpak/io.github.kb777only.gow_overlay.yml)
+#
+# The freedesktop runtime has python3 but no tkinter, so tcl/tk and the
+# _tkinter extension are built here. The overlay needs to reach outside the
+# sandbox for PCSX2's PINE socket, PCSX2's config (to auto-enable PINE), and
+# the compositor (game-window tracking on Wayland) - hence the finish-args.
+# Direct process-memory reads are impossible from inside a sandbox, so this
+# build always uses the PINE-only fallback (slightly slower enemy discovery).
+app-id: io.github.kb777only.gow_overlay
+runtime: org.freedesktop.Platform
+runtime-version: '24.08'
+sdk: org.freedesktop.Sdk
+command: gow-overlay
+
+finish-args:
+  - --share=ipc
+  - --socket=x11                                  # overlay window (XWayland on Wayland)
+  - --socket=wayland
+  - --socket=session-bus                          # compositor queries
+  - --talk-name=org.freedesktop.Flatpak           # flatpak-spawn --host: gdbus/journalctl for KWin tracking
+  - --filesystem=xdg-run/pcsx2.sock               # PINE socket (native PCSX2)
+  - --filesystem=xdg-run/app/net.pcsx2.PCSX2      # PINE socket (flatpak PCSX2)
+  - --filesystem=xdg-run/hypr                     # Hyprland IPC
+  - --filesystem=~/.config/PCSX2                  # auto-enable the PINE server
+  - --filesystem=~/.var/app/net.pcsx2.PCSX2/config/PCSX2
+
+modules:
+  - name: tcl
+    buildsystem: autotools
+    subdir: unix
+    post-install:
+      - chmod -R u+w /app/lib      # tcl installs its libs read-only, which breaks eu-strip
+    sources:
+      - type: archive
+        url: https://downloads.sourceforge.net/project/tcl/Tcl/8.6.16/tcl8.6.16-src.tar.gz
+        sha256: 91cb8fa61771c63c262efb553059b7c7ad6757afa5857af6265e4b0bdc2a14a5
+
+  - name: tk
+    buildsystem: autotools
+    subdir: unix
+    config-opts:
+      - --with-tcl=/app/lib
+    post-install:
+      - chmod -R u+w /app/lib
+    sources:
+      - type: archive
+        url: https://downloads.sourceforge.net/project/tcl/Tcl/8.6.16/tk8.6.16-src.tar.gz
+        sha256: be9f94d3575d4b3099d84bc3c10de8994df2d7aa405208173c709cc404a7e5fe
+
+  - name: python-tkinter
+    buildsystem: simple
+    build-commands:
+      - gcc -shared -fPIC -O2 -DWITH_APPINIT=1 -DPy_BUILD_CORE_MODULE=1
+        $(python3-config --includes) -IInclude/internal
+        -I/app/include Modules/_tkinter.c Modules/tkappinit.c
+        -L/app/lib -ltcl8.6 -ltk8.6
+        -o _tkinter$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
+      - PYDIR=/app/lib/python$(python3 -c "import sys; print('%d.%d' % sys.version_info[:2])")/site-packages;
+        install -d $PYDIR && cp _tkinter*.so $PYDIR/ && cp -r Lib/tkinter $PYDIR/
+    sources:
+      - type: archive
+        url: https://www.python.org/ftp/python/3.12.9/Python-3.12.9.tar.xz
+        sha256: 7220835d9f90b37c006e9842a8dff4580aaca4318674f947302b8d28f3f81112
+
+  - name: python-deps
+    buildsystem: simple
+    build-options:
+      build-args:
+        - --share=network
+    build-commands:
+      - pip3 install --no-cache-dir --prefix=/app numpy pillow
+
+  - name: gow-overlay
+    buildsystem: simple
+    build-commands:
+      - install -d /app/share/gow_overlay
+      - cp app/*.py app/camcalib.json app/gow_addrs.json app/appinfo.json /app/share/gow_overlay/
+      - install -Dm755 packaging/flatpak/gow-overlay.sh /app/bin/gow-overlay
+      - python3 -c "from PIL import Image; Image.open('assets/gow_overlay.ico').convert('RGBA').resize((256,256), Image.LANCZOS).save('gow_overlay.png')"
+      - install -Dm644 gow_overlay.png /app/share/icons/hicolor/256x256/apps/io.github.kb777only.gow_overlay.png
+      - install -Dm644 packaging/flatpak/io.github.kb777only.gow_overlay.desktop /app/share/applications/io.github.kb777only.gow_overlay.desktop
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - .git
+          - .venv
+          - build
+          - release
+          - app/__pycache__
+          - __pycache__

@@ -8,11 +8,21 @@ import sys
 
 
 def _settings_path():
-    # when frozen (PyInstaller onefile) keep settings.json next to the .exe so it
-    # persists and the user can edit it; from source keep it beside this module.
-    if getattr(sys, "frozen", False):
-        return os.path.join(os.path.dirname(sys.executable), "settings.json")
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "settings.json")
+    # keep settings.json next to the executable (frozen) / this module (source)
+    # so it persists and the user can edit it. If that directory is read-only
+    # (AppImage mount, flatpak, /usr install), fall back to the per-user
+    # config dir instead.
+    d = (os.path.dirname(sys.executable) if getattr(sys, "frozen", False)
+         else os.path.dirname(os.path.abspath(__file__)))
+    if os.access(d, os.W_OK):
+        return os.path.join(d, "settings.json")
+    base = os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config")
+    d = os.path.join(base, "gow_overlay")
+    try:
+        os.makedirs(d, exist_ok=True)
+    except OSError:
+        pass
+    return os.path.join(d, "settings.json")
 
 
 _PATH = _settings_path()
