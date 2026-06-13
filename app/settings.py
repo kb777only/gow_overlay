@@ -3,6 +3,7 @@ live reload. Edit via `python gow_overlay.py --setup` (a GUI) or by hand; a runn
 overlay picks up changes within a frame."""
 import copy
 import json
+import math
 import os
 import sys
 
@@ -29,27 +30,27 @@ _PATH = _settings_path()
 
 DEFAULTS = {
     "numbers": {
-        "size_base": 22,          # font size for a 0-damage hit
-        "size_per_damage": 0.30,  # extra px per point of damage
-        "size_cap_damage": 80,    # damage past which numbers stop growing
+        "size_base": 22,          # font size for a minimal (1-damage) hit
+        "size_per_damage": 5.0,   # px added per DOUBLING of damage (log growth)
+        "size_cap_damage": 4096,  # damage past which numbers stop growing
         "ttl": 1.45,              # seconds a number stays on screen
         "rise": 48.0,             # px it floats upward over its life
         "anchor_lerp": 0.28,      # tracking smoothing (0 = frozen, 1 = snap)
         "head_offset": 42,        # px above the enemy's projected point
         "fade_start": 0.5,        # fraction of life before the fade-out begins
         "pop": 0.42,              # scale-punch strength on spawn
-        "max_damage": 1000        # ignore bigger deltas (garbage from off-screen deaths)
+        "max_damage": 9999        # ignore bigger deltas (garbage from off-screen deaths)
     },
-    "colors": [                   # damage -> colour ramp (ascending thresholds)
-        [8, [232, 58, 34]],
-        [16, [255, 96, 28]],
-        [28, [255, 138, 32]],
-        [45, [255, 178, 48]],
+    "colors": [                   # damage -> colour ramp (ascending thresholds, spans the game)
+        [25, [232, 58, 34]],
+        [80, [255, 96, 28]],
+        [200, [255, 138, 32]],
+        [600, [255, 178, 48]],
         [100000, [255, 214, 92]]
     ],
     "epic": {
-        "min_damage": 22,         # hits >= this start triggering impact FX
-        "full_damage": 60,        # ... and reach full intensity here
+        "min_damage": 40,         # hits past this start triggering impact FX
+        "full_damage": 1200,      # ... and reach full intensity here (geometric ramp)
         "shake_enabled": True,
         "shake_amount": 1.0,      # multiplier on the screenshake
         "flash_enabled": True,
@@ -170,15 +171,27 @@ def dmg_color(dmg):
 
 
 def dmg_size(dmg):
+    """Number size grows LOGARITHMICALLY with damage so it reads well across the
+    whole game - a 2000 looks bigger than a 200 looks bigger than a 20, yet no
+    single hit becomes absurd. `size_per_damage` is px added per doubling of
+    damage; growth stops at `size_cap_damage`."""
     n = S["numbers"]
-    return int(n["size_base"] + min(dmg, n["size_cap_damage"]) * n["size_per_damage"])
+    d = max(1.0, float(dmg))
+    cap = max(2.0, float(n["size_cap_damage"]))
+    grow = float(n["size_per_damage"]) * math.log2(min(d, cap))
+    return int(round(n["size_base"] + grow))
 
 
 def impact_strength(dmg):
+    """Epic-FX intensity (0..1) ramps GEOMETRICALLY from min_damage to
+    full_damage, so the ramp spans the entire damage range. Combined with the
+    fact that your hits get bigger as you progress, epic FX naturally appear
+    more often and more strongly the further you get."""
     e = S["epic"]
-    lo, hi = e["min_damage"], e["full_damage"]
-    if dmg < lo:
+    lo = max(1.0, float(e["min_damage"]))
+    hi = float(e["full_damage"])
+    if dmg <= lo:
         return 0.0
     if hi <= lo:
         return 1.0
-    return max(0.0, min(1.0, (dmg - lo) / float(hi - lo)))
+    return max(0.0, min(1.0, math.log(dmg / lo) / math.log(hi / lo)))

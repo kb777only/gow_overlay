@@ -32,7 +32,7 @@ with open(os.path.join(APP, "appinfo.json")) as f:
 
 MODULES = ["gow_overlay", "overlay", "liveproj", "enemy", "memscan", "pine",
            "winutil", "winshot", "emu", "config", "settings", "setup_gui",
-           "pcsx2cfg", "applog", "respath", "procname", "guifont"]
+           "pcsx2cfg", "applog", "respath", "procname", "guifont", "presets"]
 if sys.platform == "win32":
     MODULES += ["winutil_win32", "overlay_win32"]
 else:
@@ -48,6 +48,7 @@ def build_binary():
             "--add-data", os.path.join(ROOT, "assets", "gow_overlay.png") + SEP + ".",
             "--add-data", os.path.join(ROOT, "assets", "gow_overlay.ico") + SEP + ".",
             "--add-data", os.path.join(ROOT, "assets", "GODOFWAR.TTF") + SEP + ".",
+            "--add-data", os.path.join(ROOT, "assets", "presets") + SEP + "presets",
             "--distpath", RELEASE,
             "--workpath", BUILDDIR,
             "--specpath", BUILDDIR]

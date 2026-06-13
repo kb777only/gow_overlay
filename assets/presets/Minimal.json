@@ -1,0 +1,7 @@
+{
+  "numbers": {"size_base": 20, "size_per_damage": 3.5, "pop": 0.2},
+  "epic": {"shake_enabled": false, "flash_enabled": false, "ring_enabled": false,
+           "whitehot_enabled": false},
+  "anim": {"gradient_enabled": false, "shimmer_enabled": false, "fire_enabled": false,
+           "sparks_enabled": false, "fireball_enabled": false}
+}

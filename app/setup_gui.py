@@ -11,6 +11,8 @@ import tkinter as tk
 from tkinter import ttk, colorchooser, filedialog, messagebox
 
 from settings import S
+import presets
+import guifont
 
 
 def _get(path):
@@ -89,25 +91,36 @@ class SetupApp:
     def _build(self):
         for w in self.root.winfo_children():
             w.destroy()
+
+        # preset picker (bundled + imported presets; selecting one applies it)
+        top = ttk.Frame(self.root); top.pack(fill="x", padx=8, pady=(8, 2))
+        ttk.Label(top, text="Preset:").pack(side="left")
+        self.preset_var = tk.StringVar(value="— pick a preset —")
+        combo = ttk.Combobox(top, textvariable=self.preset_var, state="readonly",
+                             values=presets.names(), width=24)
+        combo.pack(side="left", padx=6)
+        combo.bind("<<ComboboxSelected>>", self._on_preset)
+
         nb = ttk.Notebook(self.root)
         nb.pack(fill="both", expand=True, padx=6, pady=6)
 
         # Numbers tab
         t = ttk.Frame(nb); nb.add(t, text="Numbers")
         self.slider(t, "Base size", ("numbers", "size_base"), 8, 60, True)
-        self.slider(t, "Size / damage", ("numbers", "size_per_damage"), 0.0, 1.2)
+        self.slider(t, "Size growth (px/×2)", ("numbers", "size_per_damage"), 0.0, 15.0)
+        self.slider(t, "Grows up to dmg", ("numbers", "size_cap_damage"), 64, 8192, True)
         self.slider(t, "Lifetime (s)", ("numbers", "ttl"), 0.4, 4.0)
         self.slider(t, "Rise (px)", ("numbers", "rise"), 0, 140, True)
         self.slider(t, "Tracking lerp", ("numbers", "anchor_lerp"), 0.05, 1.0)
         self.slider(t, "Head offset (px)", ("numbers", "head_offset"), 0, 120, True)
         self.slider(t, "Fade start", ("numbers", "fade_start"), 0.0, 0.95)
         self.slider(t, "Pop strength", ("numbers", "pop"), 0.0, 1.5)
-        self.slider(t, "Max damage shown", ("numbers", "max_damage"), 50, 5000, True)
+        self.slider(t, "Max damage shown", ("numbers", "max_damage"), 50, 9999, True)
 
         # Epic FX tab
         t = ttk.Frame(nb); nb.add(t, text="Epic FX")
-        self.slider(t, "Epic min dmg", ("epic", "min_damage"), 0, 120, True)
-        self.slider(t, "Epic full dmg", ("epic", "full_damage"), 10, 200, True)
+        self.slider(t, "Epic min dmg", ("epic", "min_damage"), 0, 400, True)
+        self.slider(t, "Epic full dmg", ("epic", "full_damage"), 50, 3000, True)
         self.check(t, "Screenshake", ("epic", "shake_enabled"))
         self.slider(t, "Shake amount", ("epic", "shake_amount"), 0.0, 3.0)
         self.check(t, "Edge flash", ("epic", "flash_enabled"))
@@ -147,16 +160,16 @@ class SetupApp:
         self.slider(t, "Creature min HP", ("tracking", "creature_min_hp"), 3, 50, True)
         self.slider(t, "Creature max HP", ("tracking", "creature_max_hp"), 30, 5000, True)
 
-        # preset sharing row
+        # import/export row (imported presets join the dropdown above)
         pr = ttk.Frame(self.root); pr.pack(fill="x", padx=8, pady=(0, 2))
-        ttk.Label(pr, text="Presets:", foreground="#666").pack(side="left")
+        ttk.Label(pr, text="Share:", foreground=guifont.GOW_PALETTE["DIM"]).pack(side="left")
         ttk.Button(pr, text="Import…", command=self._import).pack(side="left", padx=(6, 0))
         ttk.Button(pr, text="Export…", command=self._export).pack(side="left", padx=6)
 
         # bottom bar
         bar = ttk.Frame(self.root); bar.pack(fill="x", padx=8, pady=(0, 8))
         ttk.Label(bar, text="changes apply live to a running overlay",
-                  foreground="#666").pack(side="left")
+                  foreground=guifont.GOW_PALETTE["DIM"]).pack(side="left")
         ttk.Button(bar, text="Reset", command=self._reset).pack(side="right")
         ttk.Button(bar, text="Open JSON", command=self._open_json).pack(side="right", padx=6)
 
@@ -182,6 +195,16 @@ class SetupApp:
                             f"Saved to:\n{path}\n\nShare the file - others load it "
                             "with Import.", parent=self.root)
 
+    def _on_preset(self, _evt=None):
+        """Apply the preset chosen in the dropdown (a running overlay reloads it)."""
+        try:
+            presets.apply(self.preset_var.get())
+        except Exception as e:
+            messagebox.showerror("Preset", f"Could not apply preset:\n{e}",
+                                 parent=self.root)
+            return
+        self.root.after_idle(self._build)      # rebuild to show the preset's values
+
     def _import(self):
         path = filedialog.askopenfilename(
             parent=self.root, title="Import settings preset",
@@ -189,12 +212,13 @@ class SetupApp:
         if not path:
             return
         try:
-            S.import_from(path)
+            name = presets.import_file(path)   # copy into the user presets -> dropdown
+            presets.apply(name)                # ...and make it the active settings
         except Exception as e:
             messagebox.showerror("Import failed",
                                  f"Could not load preset:\n{e}", parent=self.root)
             return
-        self._build()      # show the imported values (a running overlay live-reloads)
+        self.root.after_idle(self._build)      # show it + add it to the dropdown
 
     def _open_json(self):
         if sys.platform == "win32":
@@ -212,6 +236,7 @@ def main():
     guifont.setup()                 # before tk.Tk(): on Linux this sets FONTCONFIG_FILE
     root = tk.Tk(className="gow_overlay-setup")
     guifont.apply(root)             # retarget Tk's named fonts to the GoW family
+    guifont.dark_theme(root)        # God of War black/red theme (matches the launcher)
     respath.set_tk_icon(root)
     SetupApp(root)
     root.mainloop()

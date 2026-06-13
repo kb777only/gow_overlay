@@ -1,0 +1,6 @@
+{
+  "numbers": {"size_base": 24, "size_per_damage": 7.0},
+  "epic": {"min_damage": 20, "full_damage": 400, "shake_amount": 1.3,
+           "flash_amount": 1.3, "extra_pop": 0.8, "extra_ttl": 0.5},
+  "anim": {"fire_amount": 1.4, "sparks_amount": 1.5}
+}

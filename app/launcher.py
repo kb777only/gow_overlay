@@ -254,31 +254,11 @@ class LauncherApp:
                                 "or close it - the overlay keeps running.")
 
     def _theme(self, ttk):
-        """Black background, God of War red text - applied via the 'clam' ttk
-        theme (the one that honours custom colours on every element)."""
-        self.BG = "#0a0a0a"; self.RED = "#c01414"
-        self.RED_BRIGHT = "#e22020"; self.DIM = "#9a5a5a"
-        BTN = "#181818"; ACT = "#2a0e0e"; BORDER = "#5a1414"
-        self.root.configure(bg=self.BG)
-        s = ttk.Style()
-        try:
-            s.theme_use("clam")
-        except Exception:
-            pass
-        s.configure(".", background=self.BG, foreground=self.RED,
-                    fieldbackground=self.BG, bordercolor=BORDER, font="TkDefaultFont")
-        s.configure("TFrame", background=self.BG)
-        s.configure("TLabel", background=self.BG, foreground=self.RED)
-        s.configure("TSeparator", background=BORDER)
-        s.configure("TRadiobutton", background=self.BG, foreground=self.RED,
-                    indicatorcolor=BTN)
-        s.map("TRadiobutton", background=[("active", self.BG)],
-              foreground=[("active", self.RED_BRIGHT)],
-              indicatorcolor=[("selected", self.RED_BRIGHT), ("pressed", self.RED_BRIGHT)])
-        s.configure("TButton", background=BTN, foreground=self.RED,
-                    bordercolor=BORDER, relief="raised", padding=4)
-        s.map("TButton", background=[("active", ACT), ("disabled", "#101010")],
-              foreground=[("active", self.RED_BRIGHT), ("disabled", "#5a3a3a")])
+        """God of War black/red theme, shared with the settings window."""
+        import guifont
+        p = guifont.dark_theme(self.root)
+        self.BG = p["BG"]; self.RED = p["RED"]
+        self.RED_BRIGHT = p["RED_BRIGHT"]; self.DIM = p["DIM"]
 
     def _stop_overlays(self):
         """Terminate the overlay this launcher started AND any other running
