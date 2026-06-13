@@ -8,7 +8,8 @@
 A transparent, always‑on‑top overlay for the PS2 classic *God of War* (emulated in PCSX2). Hit an enemy and a fiery number pops up over them, scales with the damage, floats up and fades – pinned to where the enemy is on screen, even as the camera moves. No game files are touched.
 
 ![demo](assets/demo.gif)
-*(demo with the EpicFX thresholds lowered so the effects show on every hit)*
+
+*(demo of the Inferno preset with EpicFX thresholds lowered for presentation purposes)*
 
 ## 🎮 What's New in v0.7.3
 
