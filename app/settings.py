@@ -59,6 +59,16 @@ DEFAULTS = {
         "extra_pop": 0.55,        # extra scale-punch for big hits
         "extra_ttl": 0.35         # big hits linger this much longer (fraction)
     },
+    "anim": {
+        "gradient_enabled": True,  # molten vertical gradient inside the digits
+        "shimmer_enabled": True,   # ...that slowly shifts, like heat shimmer
+        "shimmer_speed": 1.0,      # shimmer cycles per second
+        "fire_enabled": True,      # flame licks rising off big-hit numbers
+        "fire_amount": 1.0,        # flame height/intensity multiplier
+        "sparks_enabled": True,    # ember burst on big hits
+        "sparks_amount": 1.0,      # multiplier on ember count
+        "fireball_enabled": True   # expanding fireball at the impact point
+    },
     "tracking": {
         "scan_period": 0.3,       # how often actors are re-enumerated (s)
         "near_player_dist": 700,  # only enemies within this of Kratos (world units)

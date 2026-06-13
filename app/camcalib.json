@@ -1,9 +1,15 @@
 {
-  "cx": 565.2,
-  "cy": 339.5,
-  "fx": -870.7,
-  "fy": 842.9,
-  "h": 20.0,
-  "rot_addr": 7528600,
-  "note": "camera-to-world matrix at 0x0072E090; view=R@(P+(0,h,0)-cam); calibrated multi-view"
+  "profiles": {
+    "SCES-53133": {
+      "cx": 565.2, "cy": 339.5, "fx": -870.7, "fy": 842.9, "h": 20.0,
+      "rot_addr": "0x0072E090",
+      "note": "PAL. camera-to-world matrix; view=R@(P+(0,h,0)-cam); multi-view solve"
+    },
+    "SCUS-97399": {
+      "cx": 562.71, "cy": 311.39, "fx": -1124.8, "fy": 743.29, "h": 20.0,
+      "rot_addr": "0x0075CFB0",
+      "note": "NTSC-U. camera-to-world matrix; same convention as PAL; 2-pose multi-view solve + 5-point refine 2026-06-13"
+    }
+  },
+  "default": "SCES-53133"
 }

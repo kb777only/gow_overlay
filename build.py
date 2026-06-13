@@ -67,7 +67,7 @@ def write_release_readme():
         f.write(
             "God of War (PCSX2) - live damage-number overlay v%s\n"
             "================================================\n\n"
-            "1. Start God of War (SCES-53133, PAL) in PCSX2.\n"
+            "1. Start God of War (SCES-53133 PAL or SCUS-97399 US/NTSC) in PCSX2.\n"
             "2. Run the overlay and pick how to run it. You can also start it before\n"
             "   the game - it waits, and it switches PCSX2's PINE server on for you\n"
             "   (the data channel the overlay reads the game through).\n\n"

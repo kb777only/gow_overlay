@@ -117,6 +117,17 @@ class SetupApp:
         self.slider(t, "Epic extra pop", ("epic", "extra_pop"), 0.0, 1.5)
         self.slider(t, "Epic extra linger", ("epic", "extra_ttl"), 0.0, 1.5)
 
+        # Animations tab
+        t = ttk.Frame(nb); nb.add(t, text="Animations")
+        self.check(t, "Gradient-filled digits", ("anim", "gradient_enabled"))
+        self.check(t, "Heat shimmer", ("anim", "shimmer_enabled"))
+        self.slider(t, "Shimmer speed", ("anim", "shimmer_speed"), 0.0, 3.0)
+        self.check(t, "Flames on big hits", ("anim", "fire_enabled"))
+        self.slider(t, "Flame amount", ("anim", "fire_amount"), 0.2, 1.5)
+        self.check(t, "Ember sparks", ("anim", "sparks_enabled"))
+        self.slider(t, "Spark amount", ("anim", "sparks_amount"), 0.0, 2.0)
+        self.check(t, "Fireball burst", ("anim", "fireball_enabled"))
+
         # Colors tab
         t = ttk.Frame(nb); nb.add(t, text="Colors")
         ttk.Label(t, text="Damage → colour ramp", anchor="w").pack(

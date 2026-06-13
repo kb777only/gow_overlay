@@ -14,6 +14,7 @@ compositing); putting the pixels on screen is delegated to a small backend:
   overlay_x11.Backend   - ARGB override-redirect window + XPutImage (needs a
                           compositor; works on X11 and under XWayland)
 """
+import math
 import subprocess
 import sys
 import threading
@@ -39,6 +40,28 @@ FLASH_COLOR = (255, 150, 70)
 CALIB_W, CALIB_H = 1124.0, 676.0     # resolution the camera projection is calibrated for
 FRAME_DT = 0.016                     # ~60 Hz while numbers/FX are on screen
 IDLE_DT = 0.05                       # ~20 Hz window-follow ticks while blank
+
+# --- animation lookups (built once; all effects index into these) -------------
+_PHASES = 8                          # shimmer phases per cycle (tiles cached per phase)
+
+
+def _build_fire_lut():
+    """64-entry heat -> colour ramp: deep ember red up to white-hot."""
+    stops = [(96, 6, 0), (190, 36, 6), (255, 96, 18),
+             (255, 168, 40), (255, 228, 118), (255, 255, 215)]
+    lut = np.zeros((64, 3), np.float32)
+    for i in range(64):
+        t = i / 63 * (len(stops) - 1)
+        k = min(int(t), len(stops) - 2)
+        f = t - k
+        for c in range(3):
+            lut[i, c] = stops[k][c] * (1 - f) + stops[k + 1][c] * f
+    return lut
+
+
+_FIRE = _build_fire_lut()
+_NOISE = np.random.RandomState(7).rand(256).astype(np.float32)
+_SPARK_COLORS = ((255, 224, 130), (255, 150, 52), (255, 92, 30))
 
 
 def RGB(r, g, b):
@@ -79,12 +102,16 @@ def _fc_match_bold():
 
 
 class FloatingNumber:
-    __slots__ = ("x", "y", "tx", "ty", "text", "color", "size", "born", "ttl", "rise", "epic")
+    __slots__ = ("x", "y", "tx", "ty", "text", "color", "size", "born", "ttl",
+                 "rise", "epic", "phase0", "ix", "iy", "_fx", "_fxt")
 
     def __init__(self, x, y, text, color, size, ttl=1.45, rise=48.0, epic=0.0):
         self.x = float(x); self.y = float(y); self.tx = float(x); self.ty = float(y)
         self.text = text; self.color = color; self.size = size
         self.born = time.time(); self.ttl = ttl; self.rise = rise; self.epic = epic
+        self.phase0 = random.random()      # de-syncs the shimmer between numbers
+        self.ix = float(x); self.iy = float(y)   # impact anchor (fireball stays put)
+        self._fx = None; self._fxt = 0.0         # cached flame layer + timestamp
 
     def set_target(self, tx, ty):
         self.tx = float(tx); self.ty = float(ty)
@@ -101,7 +128,12 @@ class Overlay:
         self._running = False
         self._err = None
         self._cache = {}
+        self._shapecache = {}           # (text,size) -> grayscale glyph masks
         self._ringcache = {}
+        self._sparkcache = {}
+        self._boomcache = {}
+        self._particles = []            # ember sparks [[x,y,vx,vy,born,ttl,ci,sz]]
+        self._last_t = time.time()
         self._vignette = None
         self._vignette_wh = (0, 0)
         self._shake = (0.0, 0.0)        # (amplitude, start_time)
@@ -115,11 +147,20 @@ class Overlay:
 
     # public API -------------------------------------------------------------
     def spawn(self, cx, cy, text, color=(255, 90, 40), size=34, epic=0.0):
-        n = S["numbers"]; e = S["epic"]
+        n = S["numbers"]; e = S["epic"]; an = S["anim"]
         ttl = n["ttl"] * (1.0 + e["extra_ttl"] * epic)
         fn = FloatingNumber(cx, cy, text, color, size, ttl=ttl, rise=n["rise"], epic=epic)
         with self.lock:
             self.items.append(fn)
+            if epic > 0 and an["sparks_enabled"]:
+                now = time.time()
+                for _ in range(int((7 + 13 * epic) * an["sparks_amount"])):
+                    ang = random.uniform(0, 2 * math.pi)
+                    sp = random.uniform(35, 150) * (0.6 + epic)
+                    self._particles.append(
+                        [cx, cy, math.cos(ang) * sp, math.sin(ang) * sp * 0.7 - 40,
+                         now, random.uniform(0.35, 0.85), random.randrange(3),
+                         random.uniform(2.5, 4.5 + 3 * epic)])
         if epic > 0:
             self.trigger_impact(epic)
         return fn
@@ -166,36 +207,156 @@ class Overlay:
                     pass
         return ImageFont.load_default()
 
-    def _tile(self, text, color, size):
-        """Render a glow+outline+fill number to an RGBA np array; cache it.
-        Returns (rgba_uint8 HxWx4, center_x, center_y)."""
-        key = (text, color, size)
-        cached = self._cache.get(key)
+    def _shape(self, text, size):
+        """Grayscale masks for a number, rendered once per (text, size):
+        (fill, outline, glow) uint8 HxW arrays + center. All coloured/animated
+        variants below derive from these, so PIL only ever runs here."""
+        key = (text, size)
+        cached = self._shapecache.get(key)
         if cached is not None:
             return cached
-        size = max(12, size)
         font = self._font(size)
         sw = max(2, size // 9)
         pad = max(8, size // 2)
-        meas = ImageDraw.Draw(Image.new("RGBA", (4, 4)))
+        meas = ImageDraw.Draw(Image.new("L", (4, 4)))
         bb = meas.textbbox((0, 0), text, font=font, stroke_width=sw)
         tw, th = bb[2] - bb[0], bb[3] - bb[1]
         W, H = tw + 2 * pad, th + 2 * pad
         ox, oy = pad - bb[0], pad - bb[1]
-        # fiery glow underneath
-        glow = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-        ImageDraw.Draw(glow).text((ox, oy), text, font=font, fill=(color[0], color[1], color[2], 255))
-        glow = glow.filter(ImageFilter.GaussianBlur(max(2, size // 6)))
-        a = glow.split()[3].point(lambda v: int(v * 0.75))
-        glow.putalpha(a)
-        img = Image.alpha_composite(Image.new("RGBA", (W, H), (0, 0, 0, 0)), glow)
-        # crisp number with dark outline
-        ImageDraw.Draw(img).text((ox, oy), text, font=font, fill=(color[0], color[1], color[2], 255),
-                                 stroke_width=sw, stroke_fill=(0, 0, 0, 245))
-        arr = np.asarray(img).astype(np.float32)        # (H,W,4) RGBA
-        out = (arr, pad + tw / 2.0, pad + th / 2.0)
-        if len(self._cache) < 600:
+        fill_img = Image.new("L", (W, H), 0)
+        ImageDraw.Draw(fill_img).text((ox, oy), text, font=font, fill=255)
+        both_img = Image.new("L", (W, H), 0)
+        ImageDraw.Draw(both_img).text((ox, oy), text, font=font, fill=255,
+                                      stroke_width=sw, stroke_fill=255)
+        glow_img = fill_img.filter(ImageFilter.GaussianBlur(max(2, size // 6)))
+        fill = np.asarray(fill_img, np.uint8)
+        outline = np.asarray(both_img, np.uint8).astype(np.int16)
+        outline = np.clip(outline - fill, 0, 255).astype(np.uint8)
+        out = (fill, outline, np.asarray(glow_img, np.uint8),
+               pad + tw / 2.0, pad + th / 2.0)
+        if len(self._shapecache) < 300:
+            self._shapecache[key] = out
+        return out
+
+    def _tile(self, text, color, size, phase=0.0, solid=False):
+        """A coloured glow+outline+fill number tile (uint8 RGBA + center).
+        With gradients enabled the fill is a molten vertical ramp; `phase`
+        shifts it (heat shimmer) and is quantized so tiles cache well."""
+        an = S["anim"]
+        grad = an["gradient_enabled"] and not solid
+        pq = int(phase * _PHASES) % _PHASES if (grad and an["shimmer_enabled"]) else 0
+        key = (text, color, size, grad, pq)
+        cached = self._cache.get(key)
+        if cached is not None:
+            return cached
+        size = max(12, size)
+        fill_u, outline_u, glow_u, cx, cy = self._shape(text, size)
+        f = fill_u.astype(np.float32) * (1.0 / 255.0)
+        o = outline_u.astype(np.float32) * (0.96 / 255.0)
+        gl = glow_u.astype(np.float32) * (0.75 / 255.0)
+        H, W = f.shape
+        col = np.array(color, np.float32)
+        if grad:
+            ys = np.linspace(0.0, 1.0, H, dtype=np.float32)[:, None]
+            t = np.clip(ys + 0.16 * np.sin(2 * np.pi * (ys * 1.2 + pq / _PHASES)), 0, 1)
+            c_top = col * 0.45 + np.array((255, 235, 170), np.float32) * 0.55
+            c_bot = col * 0.55 + np.array((120, 10, 0), np.float32) * 0.45
+            fill_rgb = c_top[None, None, :] * (1 - t[:, :, None]) + c_bot[None, None, :] * t[:, :, None]
+        else:
+            fill_rgb = col[None, None, :]
+        # layered "over" compositing (premultiplied): glow, dark outline, fill
+        P = np.zeros((H, W, 3), np.float32)
+        A = np.zeros((H, W), np.float32)
+        for lay_rgb, lay_a in ((col[None, None, :], gl),
+                               (np.zeros((1, 1, 3), np.float32), o),
+                               (fill_rgb, f)):
+            P = lay_rgb * lay_a[:, :, None] + P * (1 - lay_a[:, :, None])
+            A = lay_a + A * (1 - lay_a)
+        arr = np.empty((H, W, 4), np.uint8)
+        arr[:, :, :3] = np.clip(P / np.maximum(A, 1e-4)[:, :, None], 0, 255).astype(np.uint8)
+        arr[:, :, 3] = np.clip(A * 255.0, 0, 255).astype(np.uint8)
+        out = (arr, cx, cy)
+        if len(self._cache) < 400:
             self._cache[key] = out
+        return out
+
+    def _flame(self, text, size, step, strength):
+        """Flame licks rising off a glyph, derived from its mask with a few
+        vectorized passes over the tile box (no PIL). Refreshed at ~30 Hz per
+        burning number; `step` advances the flicker."""
+        fill_u, outline_u, _g, cx, cy = self._shape(text, size)
+        ext = max(8, int(size * 0.9 * min(1.5, max(0.2, strength))))
+        ext += ext & 1                              # even, for the 2x upscale
+        # the flame field is computed at HALF resolution and upscaled - it is
+        # flickering noise, so this is visually free and ~4x cheaper
+        base = np.maximum(fill_u[::2, ::2], outline_u[::2, ::2]).astype(np.float32) * (1.0 / 255.0)
+        h, w = base.shape
+        e2 = ext // 2
+        out = np.zeros((h + e2, w), np.float32)
+        out[e2:, :] = base * 0.45                   # roots hug the glyph
+        cols = np.arange(w)
+        dest = np.arange(h + e2)[:, None]
+        for i, (fr, amp) in enumerate(((0.35, 0.8), (0.7, 0.45), (1.05, 0.22))):
+            sh = max(1, int(e2 * fr))
+            jit = (_NOISE[(cols * 13 + step * 29 + i * 101) % 256] * sh * 0.8).astype(np.int32)
+            sr = dest - e2 + sh + jit[None, :]
+            valid = (sr >= 0) & (sr < h)
+            np.clip(sr, 0, h - 1, out=sr)
+            out = np.maximum(out, base[sr, cols[None, :]] * valid * amp)
+        # taper toward the tips + per-column gating so it breaks into tongues
+        ramp = np.clip(dest / max(1.0, float(e2)), 0.0, 1.0) ** 0.8
+        gate = (0.40 + 0.60 * _NOISE[(cols * 31 + step * 7) % 256])[None, :]
+        out *= ramp * gate * min(1.0, strength)
+        idx = np.clip(out * 63, 0, 63).astype(np.uint8)
+        small = np.empty((h + e2, w, 4), np.float32)
+        small[:, :, :3] = _FIRE[idx]
+        small[:, :, 3] = np.clip(out, 0, 1) * 235
+        arr = np.repeat(np.repeat(small, 2, axis=0), 2, axis=1)
+        return arr, cx, cy + ext
+
+    def _spark_tile(self, r, ci):
+        """A small glowing ember dot (hot core, soft falloff), cached."""
+        r = max(2, int(r))
+        key = (r, ci)
+        cached = self._sparkcache.get(key)
+        if cached is not None:
+            return cached
+        ax = np.arange(-r, r + 1, dtype=np.float32)
+        d = np.hypot(ax[:, None], ax[None, :]) / r
+        a = np.clip(1 - d, 0, 1) ** 2
+        col = np.array(_SPARK_COLORS[ci], np.float32)
+        hot = np.clip(a * 1.7 - 0.7, 0, 1)[:, :, None]
+        S2 = 2 * r + 1
+        arr = np.empty((S2, S2, 4), np.float32)
+        arr[:, :, :3] = col[None, None, :] * (1 - hot) + 255.0 * hot
+        arr[:, :, 3] = a * 255.0
+        out = (arr, r, r)
+        if len(self._sparkcache) < 120:
+            self._sparkcache[key] = out
+        return out
+
+    def _boom_tile(self, r, seed):
+        """An expanding fireball: radial heat ramp with noise lobes, cached by
+        radius bucket so the flipbook builds itself on demand."""
+        r = max(8, (int(r) // 5) * 5)
+        key = (r, seed)
+        cached = self._boomcache.get(key)
+        if cached is not None:
+            return cached
+        ax = np.arange(-r - 2, r + 3, dtype=np.float32)
+        yy, xx = ax[:, None], ax[None, :]
+        d = np.hypot(yy, xx) / r
+        ang = np.arctan2(yy, xx)
+        wob = 1 + 0.22 * np.sin(ang * 5 + seed * 2.1) + 0.13 * np.sin(ang * 9 + seed * 4.7)
+        body = np.clip(1 - d / wob, 0, 1)
+        idx = np.clip((body ** 1.4) * 63, 0, 63).astype(np.uint8)
+        S2 = 2 * r + 5
+        arr = np.empty((S2, S2, 4), np.float32)
+        arr[:, :, :3] = _FIRE[idx]
+        arr[:, :, 3] = (body ** 0.7) * 255.0
+        out = (arr, r + 2, r + 2)
+        if len(self._boomcache) < 80:
+            self._boomcache[key] = out
         return out
 
     def _ring_tile(self, r, color):
@@ -269,6 +430,8 @@ class Overlay:
             return
         tw = cx1 - cx0; thh = cy1 - cy0
         src = arr[ty0:ty0 + thh, tx0:tx0 + tw]
+        if src.dtype != np.float32:                    # cached tiles are uint8
+            src = src.astype(np.float32)
         sa = (src[:, :, 3:4] / 255.0) * alpha          # effective src alpha (0-1)
         src_pm = src[:, :, :3] * sa                    # premultiplied src rgb
         reg = surf[cy0:cy1, cx0:cx1]
@@ -289,9 +452,11 @@ class Overlay:
         """Draw one frame. Returns 1 when the overlay is blank (idle), 2 when a
         full-frame effect (edge flash) ran, 0 for a normal active frame."""
         S.maybe_reload()                       # live-apply settings changes
-        n = S["numbers"]; e = S["epic"]
+        n = S["numbers"]; e = S["epic"]; an = S["anim"]
         lerp = n["anchor_lerp"]; base_pop = n["pop"]; fade_start = n["fade_start"]
         ring_on = e["ring_enabled"]; whitehot_on = e["whitehot_enabled"]
+        fire_on = an["fire_enabled"]; boom_on = an["fireball_enabled"]
+        shimmer = an["shimmer_speed"] if an["shimmer_enabled"] else 0.0
         x, y, w, h = winutil.client_rect_on_screen(self.target)
         if (x, y, w, h) != self._geom:        # follow the game window live (move + RESIZE)
             self._geom = (x, y, w, h)
@@ -300,7 +465,7 @@ class Overlay:
         amp_, st0_ = self._shake
         fint_, ft0_ = self._flash
         with self.lock:
-            content = bool(self.items or self._markers)
+            content = bool(self.items or self._markers or self._particles)
         idle = not (content or (amp_ > 0 and now - st0_ < SHAKE_DUR)
                     or (fint_ > 0 and now - ft0_ < FLASH_DUR))
         if idle and self._blank:
@@ -351,22 +516,57 @@ class Overlay:
                 alpha = 1.0 - _smoothstep(fade_start, 1.0, t)
                 yoff = it.rise * _ease_out(t)
                 ax, ay = to_screen(it.x + shx, it.y - yoff + shy)
+                # expanding fireball at the impact point (epic hits), under everything
+                if boom_on and it.epic > 0 and age < 0.30:
+                    br = (8 + _ease_out(age / 0.30) * (22 + 34 * it.epic)) * sc
+                    ba = (1 - age / 0.30) * (0.40 + 0.5 * it.epic)
+                    bx, by = to_screen(it.ix + shx, it.iy + shy)
+                    self._composite(surf, self._boom_tile(br, id(it) % 5), bx, by, ba)
                 # expanding shockwave ring at the impact point (epic hits)
                 if ring_on and it.epic > 0 and age < 0.34:
                     rr = (10 + _ease_out(age / 0.34) * (38 + 46 * it.epic)) * sc
                     ra = max(0.0, (1 - age / 0.36)) * (0.55 + 0.45 * it.epic)
                     rcx, rcy = to_screen(it.x + shx, it.y + shy)
                     self._composite(surf, self._ring_tile(rr, (255, 205, 120)), rcx, rcy, ra)
-                size = max(12, int(round(it.size * anim * sc / 2) * 2))
-                self._composite(surf, self._tile(it.text, it.color, size), ax, ay, alpha)
+                # quantize the animated size: the spawn "pop" sweeps through
+                # sizes, and every distinct size means rendering a fresh glyph
+                # mask - 6 px steps keep that to a handful of cached tiles
+                size = max(12, int(round(it.size * anim * sc / 6) * 6))
+                # flame licks on burning (epic) numbers, behind the glyph;
+                # the layer regenerates at ~30 Hz so the fire flickers
+                if fire_on and it.epic > 0:
+                    if it._fx is None or now - it._fxt > 0.045:   # ~22 Hz flicker
+                        it._fx = self._flame(it.text, size, int(now * 22) & 0xFF,
+                                             (0.45 + 0.65 * it.epic) * an["fire_amount"])
+                        it._fxt = now
+                    self._composite(surf, it._fx, ax, ay, alpha)
+                ph = age * shimmer + it.phase0
+                self._composite(surf, self._tile(it.text, it.color, size, ph), ax, ay, alpha)
                 # white-hot flash on spawn (epic hits)
                 if whitehot_on and it.epic > 0 and age < 0.12:
-                    self._composite(surf, self._tile(it.text, (255, 255, 255), size),
+                    self._composite(surf, self._tile(it.text, (255, 255, 255), size, solid=True),
                                     ax, ay, (1 - age / 0.12) * 0.85 * alpha)
             for (mx, my, mtext, mcolor) in self._markers:
                 bx, by = to_screen(mx + shx, my + shy)
                 self._composite(surf, self._tile(mtext, mcolor, max(12, int(26 * sc))), bx, by, 1.0)
+            # ember sparks: burst outward, drag, then drift up while fading
+            if self._particles:
+                dt = min(0.1, max(0.0, now - self._last_t))
+                keep = []
+                for p in self._particles:
+                    pt = (now - p[4]) / p[5]
+                    if pt >= 1.0:
+                        continue
+                    p[0] += p[2] * dt; p[1] += p[3] * dt
+                    p[3] -= 55 * dt
+                    p[2] *= (1 - 1.4 * dt)
+                    px, py = to_screen(p[0] + shx, p[1] + shy)
+                    self._composite(surf, self._spark_tile(int(p[7] * sc), p[6]),
+                                    px, py, (1 - pt) ** 1.3)
+                    keep.append(p)
+                self._particles = keep
             self.items = alive
+        self._last_t = now
         # warm edge-flash on impact (full-frame by nature)
         flash_frame = False
         fint, ft0 = self._flash

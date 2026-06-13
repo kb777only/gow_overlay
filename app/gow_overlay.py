@@ -216,7 +216,7 @@ def main():
 
     ov = overlay_mod.Overlay(hwnd).start()
     _, _, cw, ch = winutil.client_rect_on_screen(hwnd)
-    proj = liveproj.LiveProjection()
+    proj = liveproj.LiveProjection(pc.game_id())
 
     simulate = "--simulate" in sys.argv
     tr = Tracker(sc); tr.start()

@@ -39,7 +39,7 @@ def main():
     player_base = enemy.find_player(sc, {a["base"] for a in found})
     ppos = next((a["pos"] for a in found if a["base"] == player_base), None)
 
-    proj = liveproj.LiveProjection()
+    proj = liveproj.LiveProjection(pc.game_id())
     proj.update(pc)
     cam = proj.cam
     print(f"\ncamera world pos = {None if cam is None else tuple(round(float(c)) for c in cam)}")
