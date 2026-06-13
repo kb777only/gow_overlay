@@ -2,7 +2,6 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-![icon](assets/gow_overlay.ico)
 **Live damage numbers that follow enemies – just like a modern action RPG.**
 
 A transparent, always‑on‑top overlay for the PS2 classic *God of War* (emulated in PCSX2). Hit an enemy and a fiery number pops up over them, scales with the damage, floats up and fades – pinned to where the enemy is on screen, even as the camera moves. No game files are touched.
