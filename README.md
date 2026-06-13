@@ -8,7 +8,7 @@ A transparent, always‑on‑top overlay for the PS2 classic *God of War* (emula
 
 ![demo](assets/demo.gif)
 
-*(demo of the Inferno preset with EpicFX thresholds lowered for presentation purposes)*
+*(demo with *EpicFX thresholds lowered* so they can be seen on every heavy hit)*
 
 ## 🎮 What's New in v0.7.3
 
