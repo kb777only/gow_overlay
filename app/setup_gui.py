@@ -36,8 +36,8 @@ class SetupApp:
     def __init__(self, root):
         self.root = root
         root.title("GoW Damage Overlay — Settings")
-        root.geometry("440x560")
-        root.minsize(420, 480)
+        root.geometry("500x580")        # roomier for the wider God of War font
+        root.minsize(460, 500)
         self._build()
 
     # ---- control builders -------------------------------------------------
@@ -208,7 +208,10 @@ class SetupApp:
 
 def main():
     import respath
+    import guifont
+    guifont.setup()                 # before tk.Tk(): on Linux this sets FONTCONFIG_FILE
     root = tk.Tk(className="gow_overlay-setup")
+    guifont.apply(root)             # retarget Tk's named fonts to the GoW family
     respath.set_tk_icon(root)
     SetupApp(root)
     root.mainloop()

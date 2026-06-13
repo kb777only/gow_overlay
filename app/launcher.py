@@ -111,27 +111,35 @@ class LauncherApp:
     def __init__(self, root):
         import tkinter as tk
         from tkinter import ttk
+        import guifont
         self.tk = tk
         self.root = root
+        self.uifont = guifont.family() or "Segoe UI"   # GoW font, else a sane default
         # NOTE: the title must NOT contain "God of War" or "PCSX2" - the window
         # matchers look for those, and this launcher stays open while they run
         root.title("GoW Damage Overlay — Launcher")
-        root.geometry("420x470")
+        root.geometry("520x480")        # the God of War font is wider than a UI font
         root.resizable(False, False)
         self._status_text = "Looking for the game…"
         self._detected = False
         self._poll = True
         self._child = None        # overlay process started by THIS launcher
         self._ext = False         # an overlay from elsewhere is running (Linux)
+        self._theme(ttk)          # black background, God of War red text
+        # closing the launcher window stops every running overlay
+        root.protocol("WM_DELETE_WINDOW", self._quit_all)
 
         wrap = ttk.Frame(root, padding=18)
         wrap.pack(fill="both", expand=True)
-        ttk.Label(wrap, text="God of War", font=("Segoe UI", 18, "bold")).pack(anchor="w")
-        ttk.Label(wrap, text="live damage-number overlay", foreground="#777").pack(anchor="w")
+        ttk.Label(wrap, text="God of War", font=(self.uifont, 18, "bold"),
+                  foreground=self.RED_BRIGHT).pack(anchor="w")
+        ttk.Label(wrap, text="live damage-number overlay",
+                  foreground=self.DIM).pack(anchor="w")
 
         # game status
         st = ttk.Frame(wrap); st.pack(fill="x", pady=(16, 8))
-        self.dot = tk.Label(st, text="●", font=("Segoe UI", 13), foreground="#e88000")
+        self.dot = tk.Label(st, text="●", font=("Segoe UI", 13),
+                            foreground="#e88000", background=self.BG)
         self.dot.pack(side="left")
         self.status = tk.StringVar(value="Looking for the game…")
         ttk.Label(st, textvariable=self.status).pack(side="left", padx=6)
@@ -139,7 +147,7 @@ class LauncherApp:
         ttk.Separator(wrap).pack(fill="x", pady=6)
 
         ttk.Label(wrap, text="How would you like to run it?",
-                  font=("Segoe UI", 10, "bold")).pack(anchor="w", pady=(6, 4))
+                  font=(self.uifont, 10, "bold")).pack(anchor="w", pady=(6, 4))
         self.mode = tk.StringVar(value="normal")
         for val, label, hint in (
             ("normal", "Normal", "overlay + a terminal with basic logs"),
@@ -149,7 +157,7 @@ class LauncherApp:
         ):
             row = ttk.Frame(wrap); row.pack(fill="x", anchor="w")
             ttk.Radiobutton(row, text=label, value=val, variable=self.mode).pack(side="left")
-            ttk.Label(row, text="– " + hint, foreground="#888").pack(side="left", padx=4)
+            ttk.Label(row, text="– " + hint, foreground=self.DIM).pack(side="left", padx=4)
 
         btns = ttk.Frame(wrap); btns.pack(fill="x", pady=(18, 4))
         self.start_btn = ttk.Button(btns, text="▶  Start Overlay", command=self._start)
@@ -162,8 +170,14 @@ class LauncherApp:
         ttk.Button(dbg, text="📋  Copy last log", command=self._copy_log).pack(side="left")
         ttk.Button(dbg, text="🐞  Report an issue", command=self._report).pack(side="left", padx=8)
 
-        ttk.Label(wrap, text="Tip: you can launch this before the game — it will wait.",
-                  foreground="#999", font=("Segoe UI", 8)).pack(anchor="w", side="bottom")
+        cl = ttk.Frame(wrap); cl.pack(fill="x", pady=(10, 0))
+        ttk.Button(cl, text="✕  Close launcher, keep overlay running",
+                   command=self._close_keep).pack(side="left")
+
+        ttk.Label(wrap, text="Closing this window (✕ titlebar) stops the overlay. "
+                  "It also stops when you close God of War.",
+                  foreground=self.DIM, font=(self.uifont, 8),
+                  wraplength=470, justify="left").pack(anchor="w", side="bottom")
 
         threading.Thread(target=self._poll_game, daemon=True).start()
         self._refresh()
@@ -239,11 +253,37 @@ class LauncherApp:
                                 "Keep this window open to tweak Settings live,\n"
                                 "or close it - the overlay keeps running.")
 
-    def _stop(self):
-        """Stop the overlay - the one this launcher started AND any running in
-        the background (e.g. a silent overlay from an earlier session), so
-        nobody has to hunt processes in a task manager."""
-        from tkinter import messagebox
+    def _theme(self, ttk):
+        """Black background, God of War red text - applied via the 'clam' ttk
+        theme (the one that honours custom colours on every element)."""
+        self.BG = "#0a0a0a"; self.RED = "#c01414"
+        self.RED_BRIGHT = "#e22020"; self.DIM = "#9a5a5a"
+        BTN = "#181818"; ACT = "#2a0e0e"; BORDER = "#5a1414"
+        self.root.configure(bg=self.BG)
+        s = ttk.Style()
+        try:
+            s.theme_use("clam")
+        except Exception:
+            pass
+        s.configure(".", background=self.BG, foreground=self.RED,
+                    fieldbackground=self.BG, bordercolor=BORDER, font="TkDefaultFont")
+        s.configure("TFrame", background=self.BG)
+        s.configure("TLabel", background=self.BG, foreground=self.RED)
+        s.configure("TSeparator", background=BORDER)
+        s.configure("TRadiobutton", background=self.BG, foreground=self.RED,
+                    indicatorcolor=BTN)
+        s.map("TRadiobutton", background=[("active", self.BG)],
+              foreground=[("active", self.RED_BRIGHT)],
+              indicatorcolor=[("selected", self.RED_BRIGHT), ("pressed", self.RED_BRIGHT)])
+        s.configure("TButton", background=BTN, foreground=self.RED,
+                    bordercolor=BORDER, relief="raised", padding=4)
+        s.map("TButton", background=[("active", ACT), ("disabled", "#101010")],
+              foreground=[("active", self.RED_BRIGHT), ("disabled", "#5a3a3a")])
+
+    def _stop_overlays(self):
+        """Terminate the overlay this launcher started AND any other running
+        overlay (e.g. a silent one from an earlier session). Returns how many
+        were stopped. No UI - safe to call on window close."""
         import procname
         found = 0
         if self._child is not None and self._child.poll() is None:
@@ -252,10 +292,28 @@ class LauncherApp:
                 found += 1
             except Exception:
                 pass
-        found += procname.stop_overlays()
-        if not found:
+        return found + procname.stop_overlays()
+
+    def _stop(self):
+        from tkinter import messagebox
+        if not self._stop_overlays():
             messagebox.showinfo("Stop overlay", "No running overlay found.",
                                 parent=self.root)
+
+    def _quit_all(self):
+        """Closing the launcher window stops every running overlay, then exits."""
+        self._poll = False
+        try:
+            self._stop_overlays()
+        except Exception:
+            pass
+        self.root.destroy()
+
+    def _close_keep(self):
+        """Close just the launcher; leave the overlay running in the background
+        (it was started in its own session, so it survives)."""
+        self._poll = False
+        self.root.destroy()
 
     def _settings(self):
         _spawn(["--setup"], show_console=False)
@@ -292,8 +350,11 @@ def main():
     procname.set_name(procname.LAUNCHER)
     import tkinter as tk
     import respath
+    import guifont
+    guifont.setup()                 # before tk.Tk(): on Linux this sets FONTCONFIG_FILE
     # className -> WM_CLASS "gow_overlay*", which every window matcher excludes
     root = tk.Tk(className="gow_overlay-launcher")
+    guifont.apply(root)             # retarget Tk's named fonts to the GoW family
     respath.set_tk_icon(root)
     LauncherApp(root)
     root.mainloop()

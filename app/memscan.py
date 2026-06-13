@@ -445,17 +445,19 @@ class Scanner:
         return res
 
 
-def open_reader(pid: Optional[int], pc: pine.PineClient):
+def open_reader(pid: Optional[int], pc: pine.PineClient, quiet: bool = False):
     """RpmReader if direct process reads work, else the PineReader fallback
-    (with a one-line note about why)."""
+    (with a one-line note about why, unless quiet)."""
     if pid is not None:
         try:
             return RpmReader(pid)
         except (OSError, PermissionError) as e:
-            print(f"note: direct memory reads unavailable ({e})")
-    else:
+            if not quiet:
+                print(f"note: direct memory reads unavailable ({e})")
+    elif not quiet:
         print("note: pcsx2 process not found by name")
-    print("      falling back to PINE-only reads - enemy scans will be slower.", flush=True)
+    if not quiet:
+        print("      falling back to PINE-only reads - enemy scans will be slower.", flush=True)
     return PineReader(pc)
 
 

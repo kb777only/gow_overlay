@@ -12,13 +12,17 @@ When you hit an enemy, a fiery damage number pops up above them, scales with the
   
 ![Demo](assets/demo.gif)
 
-## 🌍 What's New in v0.7.1 (now plays the US/NTSC release too)
+## 🎮 What's New in v0.7.2 (the real God of War font — and a themed launcher)
 
-- 🇺🇸 **North American `SCUS-97399` support.** Until now the numbers only lined up on the PAL `SCES-53133` disc; on the US release enemies and damage were detected but nothing drew on screen. The overlay now auto-detects the game by its ID (over PINE) and loads the right **per-region camera profile**, so PAL **and** US/NTSC both work out of the box.
-- 🎯 **Why it needs a profile:** GoW has no global camera matrix — the PS2's VU transforms each object on its own — so the overlay reads the live camera-to-world matrix from a fixed address and applies hand-calibrated lens intrinsics. Both the **address and the intrinsics differ between the PAL and NTSC builds**, so v0.7.1 keeps a profile per game ID in `camcalib.json` and selects it automatically.
-- ➕ **Adding more regions is quick** — a two-pose calibration (match enemy world-coords to on-screen pixels at two camera angles) pins a new disc's camera and intrinsics. Issues/PRs welcome.
+- 🅰️ **The actual God of War font, everywhere.** The damage numbers *and* the whole launcher/settings UI now use the game's own typeface. It's **bundled with the app** — nothing to install on your machine (loaded straight from the file on the numbers, and process-privately for the windows: `AddFontResourceEx` on Windows, a private `fontconfig` config on Linux).
+- 🩸 **God of War themed launcher** — black background, blood-red text, to match.
+- 🛑 **Saner launcher close behaviour:**
+  - **Closing the launcher window stops every running overlay** (no more hunting for a stray background process).
+  - A **"Close launcher, keep overlay running"** button for when you want the overlay to stay up without the launcher.
+  - **Closing God of War itself also stops the overlay** automatically — it notices the game/emulator is gone and exits.
+- 🔊 **Reworked logging modes:** **Normal** is unchanged (status + a periodic tracking summary); **Damage log** now shows *only* damage lines (a clean feed, nothing else); **Verbose** now shows *everything* — per-scan enemy enumeration, camera-matrix status, and per-frame tracking/projection state.
 
-Recent releases: **v0.7.0** brought animated numbers – fire, exploding fireballs with ember sparks, and molten heat-shimmer gradients (all live-tweakable in **Settings → Animations**); **v0.6.95** fixed the overlay attaching to the launcher window; **v0.6.9** fixed misplaced damage numbers and added the ⏹ Stop button, named processes, and the app icon; **v0.6.5** added preset sharing, crash logs and the always-open launcher; **v0.6.0** cut the overlay's overhead to near zero; **v0.5.0** added full Wayland support and the Linux packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
+Recent releases: **v0.7.1** added US/NTSC `SCUS-97399` support (per-region camera profiles, auto-detected by game ID); **v0.7.0** brought animated numbers – fire, exploding fireballs with ember sparks, and molten heat-shimmer gradients (all live-tweakable in **Settings → Animations**); **v0.6.95** fixed the overlay attaching to the launcher window; **v0.6.9** fixed misplaced damage numbers and added the ⏹ Stop button, named processes, and the app icon; **v0.6.5** added preset sharing, crash logs and the always-open launcher; **v0.6.0** cut the overlay's overhead to near zero; **v0.5.0** added full Wayland support and the Linux packages. Full history in [Releases](https://github.com/kb777only/gow_overlay/releases).
 
 ## 🗺️ Roadmap
 
@@ -60,10 +64,14 @@ Grab a build from [Releases](https://github.com/kb777only/gow_overlay/releases):
 Then:
 
 1. Start the overlay (before or after the game – it waits, and auto-detects a running game).
-2. Pick a mode – **Normal** / **Verbose** / **Damage log** (with a log terminal) or **Silent** (overlay only) – and click **Start Overlay**.
+2. Pick a mode and click **Start Overlay**:
+   - **Normal** – overlay + a terminal with status and a periodic tracking summary.
+   - **Damage log** – overlay + a terminal showing **only** damage numbers as they land.
+   - **Verbose** – overlay + a terminal dumping **everything** (scans, camera state, per-frame tracking).
+   - **Silent** – overlay only, no terminal.
 3. Play. Damage numbers pop over enemies as you hurt them.
 
-The launcher stays open: click **Settings** any time to tune colours, sizes and effects **live while playing**, or to **Import/Export** a preset. **⏹ Stop** ends the overlay (even a background/Silent one) whenever you're done.
+The launcher stays open: click **Settings** any time to tune colours, sizes and effects **live while playing**, or to **Import/Export** a preset. **⏹ Stop** ends the overlay whenever you're done. **Closing the launcher window also stops the overlay** — or use **✕ Close launcher, keep overlay running** to leave it going. Either way, **closing God of War ends the overlay** on its own.
 
 ## ⚡ Performance
 

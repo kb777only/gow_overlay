@@ -101,6 +101,22 @@ def _fc_match_bold():
     return _fc_match_path
 
 
+_gow_font_path = None
+
+
+def _gow_font():
+    """Path to the bundled God of War .ttf, loaded straight from the file (no
+    system install needed), or "" if it isn't present."""
+    global _gow_font_path
+    if _gow_font_path is None:
+        try:
+            import respath
+            _gow_font_path = respath.asset_path("GODOFWAR.TTF") or ""
+        except Exception:
+            _gow_font_path = ""
+    return _gow_font_path
+
+
 class FloatingNumber:
     __slots__ = ("x", "y", "tx", "ty", "text", "color", "size", "born", "ttl",
                  "rise", "epic", "phase0", "ix", "iy", "_fx", "_fxt")
@@ -193,6 +209,12 @@ class Overlay:
 
     # font / tile rendering --------------------------------------------------
     def _font(self, size):
+        gp = _gow_font()                       # bundled God of War font, preferred
+        if gp:
+            try:
+                return ImageFont.truetype(gp, size)
+            except Exception:
+                pass
         for name in _FONT_CANDIDATES:
             try:
                 return ImageFont.truetype(name, size)

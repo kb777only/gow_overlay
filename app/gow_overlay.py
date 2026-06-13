@@ -114,6 +114,15 @@ class Tracker(threading.Thread):
                         self.actors[b]["miss"] += 1
                         if self.actors[b]["miss"] > 3:
                             del self.actors[b]
+            if LEVEL >= VERBOSE:
+                pb = ("0x%08X" % player_base) if player_base else None
+                print(f"  [scan] {len(found)} actors, player {pb}, "
+                      f"tracking {len(self.actors)}", flush=True)
+                for a in found:
+                    x, y, z = a["pos"]
+                    tag = " <- player" if a["base"] == player_base else ""
+                    print(f"    0x{a['base']:08X} hp {a['cur']:.0f}/{a['max']:.0f} "
+                          f"({x:.0f},{y:.0f},{z:.0f}){tag}", flush=True)
             # pace by how long the scan actually took (<=25% duty): direct reads
             # are ~0.1s so this stays at scan_period; PINE reads self-throttle so
             # the emulator keeps its CPU on weak machines.
@@ -199,7 +208,7 @@ def main():
     if LEVEL >= NORMAL:
         print("connected:", pc.title(), pc.game_id())
 
-    rpm = memscan.open_reader(pid, pc)      # direct reads, or PINE-only fallback
+    rpm = memscan.open_reader(pid, pc, quiet=LEVEL < NORMAL)   # direct reads, or PINE-only fallback
     base = None
     for attempt in range(8):
         base = rpm.locate_ee_base(pc)       # re-samples each try (fresh pivot)
@@ -223,12 +232,13 @@ def main():
     if LEVEL >= NORMAL:
         print(f"running ({cw}x{ch}) - damage numbers appear over enemies that lose health. "
               f"Ctrl+C to stop.", flush=True)
-    else:
-        print("running", flush=True)
+    elif LEVEL == SILENT:
+        print("running", flush=True)        # DMG mode stays silent until a hit lands
 
     OFF_HP, OFF_POS = enemy.OFF_HP, enemy.OFF_POS
     active = []          # [{"base", "fn"}] live damage numbers being tracked
     frame = 0
+    dead = 0             # consecutive failed reads (game/emulator closing)
     while True:
         frame += 1
         if simulate and frame % 18 == 0:        # demo: inject a hit on a random enemy
@@ -251,9 +261,19 @@ def main():
                      ("f32", b + OFF_POS + 4), ("f32", b + OFF_POS + 8)]
         try:
             vals = pc.batch_read(reqs)
+            dead = 0
         except Exception:
+            dead += 1
+            # reads keep failing AND PCSX2's window is gone => the game/emulator
+            # was closed. Stop the overlay instead of spinning forever.
+            if dead >= 20 and winutil.find_pcsx2_window() is None:
+                if LEVEL >= NORMAL:
+                    print("God of War closed - stopping overlay.", flush=True)
+                break
             time.sleep(0.1); continue
-        proj.set_matrix(vals[:16])
+        cam_ok = proj.set_matrix(vals[:16])
+        if LEVEL >= VERBOSE and not cam_ok:
+            print("  [cam] matrix rejected this frame (kept last good)", flush=True)
 
         o = 16
         cur_pos = {}
@@ -267,8 +287,9 @@ def main():
                 onscreen = s and (-MARGIN <= s[0] <= overlay_mod.CALIB_W + MARGIN
                                   and -MARGIN <= s[1] <= overlay_mod.CALIB_H + MARGIN)
                 if LEVEL >= VERBOSE:
-                    print(f"  DMG {dmg} on 0x{b:08X} hp{last[b]:.0f}->{hp:.0f} -> "
-                          f"{None if not s else (round(s[0]), round(s[1]))}", flush=True)
+                    where = (round(s[0]), round(s[1])) if s else None
+                    print(f"  DMG {dmg} on 0x{b:08X} hp{last[b]:.0f}->{hp:.0f} "
+                          f"screen={where} {'drawn' if onscreen else 'off-screen'}", flush=True)
                 elif LEVEL >= DMG:
                     print(f"  DMG {dmg} on 0x{b:08X}", flush=True)
                 if onscreen:
@@ -298,9 +319,15 @@ def main():
             alive.append(a)
         active = alive
 
-        if LEVEL >= NORMAL and frame % 60 == 0:
+        if LEVEL >= VERBOSE:
+            print(f"  [frame {frame}] camera={'ok' if proj.R is not None else 'none'}, "
+                  f"tracking {len(bases)} enemies, {len(active)} numbers", flush=True)
+        elif LEVEL >= NORMAL and frame % 60 == 0:
             print(f"[{frame}] tracking {len(bases)} enemies, {len(active)} numbers", flush=True)
         time.sleep(0.03)
+
+    tr.stop()
+    ov.stop()
 
 
 if __name__ == "__main__":
